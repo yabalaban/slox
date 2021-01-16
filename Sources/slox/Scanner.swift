@@ -55,6 +55,8 @@ final class Scanner {
         case "/":
             if match("/") {
                 while current != source.endIndex && advance() != "\n" { }
+            } else if match("*") {
+                try blockComment()
             } else {
                 addToken(type: .slash)
             }
@@ -104,6 +106,29 @@ private extension Scanner {
     func identifier() {
         next(cond: { $0.isNumber || $0.isIdentifier })
         addToken(type: TokenType(rawValue: String(source[start..<current])) ?? .identifier)
+    }
+    
+    func blockComment() throws {
+        var depth = 1
+        while depth != 0 && current != source.endIndex {
+            let char = advance()
+            print(char)
+            switch char {
+            case "/":
+                if match("*") {
+                    depth += 1
+                }
+            case "*":
+                if match("/") {
+                    depth -= 1
+                }
+            default:
+               break
+            }
+        }
+        if depth != 0 {
+            throw ScannerError(line: line, message: "Invalid multiline comment.")
+        }
     }
 }
 
