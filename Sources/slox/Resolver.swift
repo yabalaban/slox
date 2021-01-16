@@ -163,7 +163,7 @@ extension Resolver: StmtVisitor {
     }
     
     func visit(_ stmt: ReturnStmt) throws -> Void {
-        guard currentFunction == .function else {
+        guard currentFunction == .function || currentFunction == .method else {
             throw ResolverError(token: stmt.keyword, message: "Can't return from top-level code.")
         }
         

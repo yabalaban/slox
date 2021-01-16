@@ -48,7 +48,7 @@ final class LoxFunction: Callable, CustomStringConvertible {
     func bind(_ instance: LoxInstance) -> LoxFunction {
         let env = Environment(enclosing: closure)
         env.define(name: "this", value: .instance(instance))
-        return LoxFunction(declaration: declaration, closure: env, isInitializer: true)
+        return LoxFunction(declaration: declaration, closure: env, isInitializer: isInitializer)
     }
     
     func returnInit() throws -> LoxObject {
