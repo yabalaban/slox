@@ -13,6 +13,7 @@ protocol ExprVisitor {
     func visit(_ expr: LiteralExpr) throws -> ER
     func visit(_ expr: LogicalExpr) throws -> ER
     func visit(_ expr: SetExpr) throws -> ER
+    func visit(_ expr: SuperExpr) throws -> ER
     func visit(_ expr: ThisExpr) throws -> ER
     func visit(_ expr: UnaryExpr) throws -> ER
     func visit(_ expr: VariableExpr) throws -> ER
@@ -141,6 +142,21 @@ final class SetExpr: Expr {
         self.name = name
         self.object = object
         self.value = value
+    }
+    
+    func accept<Visitor: ExprVisitor>(visitor: Visitor) throws -> Visitor.ER {
+        return try visitor.visit(self)
+    }
+}
+
+final class SuperExpr: Expr {
+    let keyword: Token
+    let method: Token
+    var description: String { "\(Self.self):<\(keyword)>,\(method)" }
+    
+    init(keyword: Token, method: Token) {
+        self.keyword = keyword
+        self.method = method
     }
     
     func accept<Visitor: ExprVisitor>(visitor: Visitor) throws -> Visitor.ER {

@@ -6,6 +6,7 @@ final class Resolver {
     enum ClassType {
         case none
         case klass
+        case subclass
     }
     enum FunctionType {
         case none
@@ -77,6 +78,17 @@ extension Resolver: ExprVisitor {
         try resolve(expr.object)
     }
     
+    func visit(_ expr: SuperExpr) throws -> Void {
+        switch currentClass {
+        case .none:
+            throw ResolverError(token: expr.keyword, message: "Can't use 'super' outside of a class.")
+        case .klass:
+            throw ResolverError(token: expr.keyword, message: "Can't use 'super' in a class with no superclass.")
+        case .subclass:
+            resolve(expr, expr.keyword)
+        }
+    }
+    
     func visit(_ expr: ThisExpr) throws -> Void {
         guard currentClass == .klass else { throw ResolverError(token: expr.keyword, message: "Can't use 'this' outside of a class.") }
         resolve(expr, expr.keyword)
@@ -108,12 +120,27 @@ extension Resolver: StmtVisitor {
         let enclosingClass = currentClass
         currentClass = .klass
         try declare(stmt.name)
-        try scope {
-            currentScope?["this"] = true
-            try stmt.methods.forEach({ try resolve($0, $0.name.lexeme == "init" ? .initializer : .method) })
-            
-        }
         define(stmt.name)
+        
+        if let superclass = stmt.superclass {
+            currentClass = .subclass
+            guard superclass.name.lexeme != stmt.name.lexeme else {
+                throw ResolverError(token: superclass.name, message: "A class can't inherit from itself.")
+            }
+            try resolve(superclass)
+        }
+        
+        try scope {
+            if stmt.superclass != nil {
+                currentScope?["super"] = true
+            }
+            
+            try scope {
+                currentScope?["this"] = true
+                try stmt.methods.forEach({ try resolve($0, $0.name.lexeme == "init" ? .initializer : .method) })
+            }
+        }
+        
         currentClass = enclosingClass
     }
     

@@ -3,7 +3,7 @@
 //
 
 final class Environment: CustomStringConvertible {
-    private let enclosing: Environment?
+    let enclosing: Environment?
     private var values = [String: LoxObject]()
     var description: String { values.description }
     
@@ -21,6 +21,10 @@ final class Environment: CustomStringConvertible {
     
     func get(at distance: Int, _ name: Token) throws -> LoxObject {
         return try ancestor(distance).get(name: name)
+    }
+    
+    func get(at distance: Int, _ name: String) throws -> LoxObject {
+        return ancestor(distance).values[name]!
     }
     
     func get(_ name: String) -> LoxObject? {

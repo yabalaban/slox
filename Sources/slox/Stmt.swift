@@ -33,10 +33,12 @@ final class BlockStmt: Stmt {
 
 final class ClassStmt: Stmt {
     let name: Token
+    let superclass: VariableExpr?
     let methods: [FuncStmt]
     
-    init(name: Token, methods: [FuncStmt]) {
+    init(name: Token, superclass: VariableExpr?, methods: [FuncStmt]) {
         self.name = name
+        self.superclass = superclass
         self.methods = methods
     }
     

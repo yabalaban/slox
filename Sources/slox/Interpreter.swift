@@ -188,6 +188,16 @@ extension Interpreter: ExprVisitor {
         return val
     }
     
+    func visit(_ expr: SuperExpr) throws -> LoxObject {
+        guard let distance = locals[expr.description] else { return .null }
+        guard case let .klass(superclass) = try environment.get(at: distance, "super") else { return .null }
+        guard case let .instance(object) = try environment.get(at: distance - 1, "this") else { return .null }
+        guard let method = superclass.findMethod(expr.method.lexeme) else {
+            throw RuntimeError(token: expr.method, message: "Undefined property '\(expr.method.lexeme)'.")
+        }
+        return .callable(method.bind(object))
+    }
+    
     func visit(_ expr: ThisExpr) throws -> LoxObject {
         return .null
     }
@@ -223,14 +233,30 @@ extension Interpreter: StmtVisitor {
     }
     
     func visit(_ stmt: ClassStmt) throws -> Void {
+        var superklass: LoxClass?
+        if let superclass = stmt.superclass {
+            let res = try evaluate(superclass)
+            guard case .klass(let superk) = res else {
+                throw RuntimeError(token: stmt.name, message: "Superclass must be a class.")
+            }
+            superklass = superk
+        }
+        
         environment.define(name: stmt.name.lexeme, value: .null)
+        if let superklass = superklass {
+            environment = Environment(enclosing: environment)
+            environment.define(name: "super", value: .klass(superklass))
+        }
         
         let methods = stmt.methods.reduce(into: [String: LoxFunction](), { res, method in
             res[method.name.lexeme] = LoxFunction(declaration: method,
                                                   closure: environment,
                                                   isInitializer: method.name.lexeme == "init")
         })
-        let klass = LoxClass(name: stmt.name.lexeme, methods: methods)
+        let klass = LoxClass(name: stmt.name.lexeme, superclass: superklass, methods: methods)
+        if superklass != nil, let enclosing = environment.enclosing {
+            environment = enclosing
+        }
         environment.assign(name: stmt.name, value: .klass(klass))
     }
     

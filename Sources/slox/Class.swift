@@ -4,16 +4,19 @@
 
 final class LoxClass {
     let name: String
+    let superclass: LoxClass?
     let methods: [String: LoxFunction]
     
     init(name: String,
+         superclass: LoxClass?,
          methods: [String: LoxFunction]) {
         self.name = name
+        self.superclass = superclass
         self.methods = methods
     }
     
     func findMethod(_ name: String) -> LoxFunction? {
-        return methods[name]
+        return methods[name] ?? superclass?.findMethod(name)
     }
 }
 

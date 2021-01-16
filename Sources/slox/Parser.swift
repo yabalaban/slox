@@ -107,7 +107,8 @@ private extension Parser {
     }
     
     // primary → NUMBER | STRING | "true" | "false" | "nil"
-    //         | "(" expression ")" | IDENTIFIER;
+    //         | "(" expression ")" | IDENTIFIER |
+    //         | "super" "." IDENTIFIER ;
     func primary() throws -> Expr {
         if match(.number, .string) { return LiteralExpr(object: previous.literal) }
         if match(.true) { return LiteralExpr(object: .bool(true)) }
@@ -117,6 +118,12 @@ private extension Parser {
             let expr = try expression()
             try consume(.rightParen, message: "Expect ')' after expression.")
             return GroupingExpr(expr: expr)
+        }
+        if match(.super) {
+            let token = previous
+            try consume(.dot, message: "Expect '.' after 'super'.")
+            let method = try consume(.identifier, message: "Expect superclass method name.")
+            return SuperExpr(keyword: token, method: method)
         }
         if match(.this) { return ThisExpr(keyword: previous) }
         if match(.identifier) { return VariableExpr(name: previous) }
@@ -145,16 +152,22 @@ private extension Parser {
         return nil
     }
     
-    // classDecl → "class" IDENTIFIER "{" function* "}" ;
+    // classDecl → "class" IDENTIFIER ( "<" IDENTIFIER )?
+    //           | "{" function* "}" ;
     func classDeclaration() throws -> Stmt {
         let name = try consume(.identifier, message: "Expect class name.")
+        var superclass: VariableExpr?
+        if match(.less) {
+            try consume(.identifier, message: "Expect superclass name.")
+            superclass = VariableExpr(name: previous)
+        }
         try consume(.leftBrace, message: "Expect '{' before class body.")
         var methods = [FuncStmt]()
         while !check(.rightBrace) && !done {
             methods.append(try funcDeclaration("method"))
         }
         try consume(.rightBrace, message: "Expect '}' before class body.")
-        return ClassStmt(name: name, methods: methods)
+        return ClassStmt(name: name, superclass: superclass, methods: methods)
     }
     
     // funDecl → "fun" function ;

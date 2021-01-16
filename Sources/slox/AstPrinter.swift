@@ -41,6 +41,10 @@ final class AstPrinter: ExprVisitor {
         return expr.description
     }
     
+    func visit(_ expr: SuperExpr) throws -> String {
+        return expr.description
+    }
+    
     func visit(_ expr: ThisExpr) throws -> String {
         return expr.description
     }
