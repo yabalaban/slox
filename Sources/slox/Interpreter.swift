@@ -135,13 +135,26 @@ extension Interpreter: ExprVisitor {
         for arg in expr.args {
             args.append(try evaluate(arg))
         }
-        guard case let .callable(function) = obj else {
+        let callable: Callable
+        if case let .callable(function) = obj {
+            callable = function
+        } else if case let .klass(klass) = obj {
+            callable = klass
+        } else {
             throw RuntimeError(token: expr.paren, message: "Can only call functions and classes.")
         }
-        guard function.arity == args.count else {
-            throw RuntimeError(token: expr.paren, message: "Expected \(function.arity) arguments but got \(args.count).")
+        guard callable.arity == args.count else {
+            throw RuntimeError(token: expr.paren, message: "Expected \(callable.arity) arguments but got \(args.count).")
         }
-        return try function.call(self, args)
+        return try callable.call(self, args)
+    }
+    
+    func visit(_ expr: GetExpr) throws -> LoxObject {
+        let obj = try evaluate(expr.object)
+        guard case let .instance(inst) = obj else {
+            throw RuntimeError(token: expr.name, message: "Only instances have properties.")
+        }
+        return try inst.get(expr.name)
     }
     
     func visit(_ expr: GroupingExpr) throws -> LoxObject {
@@ -163,6 +176,20 @@ extension Interpreter: ExprVisitor {
         default:
             return try evaluate(expr.right)
         }
+    }
+    
+    func visit(_ expr: SetExpr) throws -> LoxObject {
+        let obj = try evaluate(expr.object)
+        guard case let .instance(inst) = obj else {
+            throw RuntimeError(token: expr.name, message: "Only instances have fields.")
+        }
+        let val = try evaluate(expr.value)
+        inst.set(expr.name, val)
+        return val
+    }
+    
+    func visit(_ expr: ThisExpr) throws -> LoxObject {
+        return .null
     }
     
     func visit(_ expr: UnaryExpr) throws -> LoxObject {
@@ -195,12 +222,24 @@ extension Interpreter: StmtVisitor {
         try execute(stmt.statements, Environment(enclosing: environment))
     }
     
+    func visit(_ stmt: ClassStmt) throws -> Void {
+        environment.define(name: stmt.name.lexeme, value: .null)
+        
+        let methods = stmt.methods.reduce(into: [String: LoxFunction](), { res, method in
+            res[method.name.lexeme] = LoxFunction(declaration: method,
+                                                  closure: environment,
+                                                  isInitializer: method.name.lexeme == "init")
+        })
+        let klass = LoxClass(name: stmt.name.lexeme, methods: methods)
+        environment.assign(name: stmt.name, value: .klass(klass))
+    }
+    
     func visit(_ stmt: ExpressionStmt) throws -> Void {
         try evaluate(stmt.expression)
     }
     
     func visit(_ stmt: FuncStmt) throws -> Void {
-        let function = LoxFunction(declaration: stmt, closure: environment)
+        let function = LoxFunction(declaration: stmt, closure: environment, isInitializer: false)
         environment.define(
             name: stmt.name.lexeme,
             value: .callable(function)

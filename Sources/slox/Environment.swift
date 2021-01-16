@@ -23,6 +23,10 @@ final class Environment: CustomStringConvertible {
         return try ancestor(distance).get(name: name)
     }
     
+    func get(_ name: String) -> LoxObject? {
+        return values[name]
+    }
+    
     func get(name: Token) throws -> LoxObject {
         if let value = values[name.lexeme] {
             return value

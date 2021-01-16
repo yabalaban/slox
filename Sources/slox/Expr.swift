@@ -8,9 +8,12 @@ protocol ExprVisitor {
     func visit(_ expr: AssignExpr) throws -> ER
     func visit(_ expr: BinaryExpr) throws -> ER
     func visit(_ expr: CallExpr) throws -> ER
+    func visit(_ expr: GetExpr) throws -> ER
     func visit(_ expr: GroupingExpr) throws -> ER
     func visit(_ expr: LiteralExpr) throws -> ER
     func visit(_ expr: LogicalExpr) throws -> ER
+    func visit(_ expr: SetExpr) throws -> ER
+    func visit(_ expr: ThisExpr) throws -> ER
     func visit(_ expr: UnaryExpr) throws -> ER
     func visit(_ expr: VariableExpr) throws -> ER
 }
@@ -68,6 +71,21 @@ final class CallExpr: Expr {
     }
 }
 
+final class GetExpr: Expr {
+    let name: Token
+    let object: Expr
+    var description: String { "\(Self.self):<\(name),\(object)>" }
+    
+    init(name: Token, object: Expr) {
+        self.name = name
+        self.object = object
+    }
+    
+    func accept<Visitor: ExprVisitor>(visitor: Visitor) throws -> Visitor.ER {
+        return try visitor.visit(self)
+    }
+}
+
 final class GroupingExpr: Expr {
     let expr: Expr
     var description: String { "<\(Self.self):\(expr)>" }
@@ -106,6 +124,36 @@ final class LogicalExpr: Expr {
         self.left = left
         self.op = op
         self.right = right
+    }
+    
+    func accept<Visitor: ExprVisitor>(visitor: Visitor) throws -> Visitor.ER {
+        return try visitor.visit(self)
+    }
+}
+
+final class SetExpr: Expr {
+    let name: Token
+    let object: Expr
+    let value: Expr
+    var description: String { "\(Self.self):<\(name),\(object),\(value)>" }
+    
+    init(name: Token, object: Expr, value: Expr) {
+        self.name = name
+        self.object = object
+        self.value = value
+    }
+    
+    func accept<Visitor: ExprVisitor>(visitor: Visitor) throws -> Visitor.ER {
+        return try visitor.visit(self)
+    }
+}
+
+final class ThisExpr: Expr {
+    let keyword: Token
+    var description: String { "\(Self.self):<\(keyword)>" }
+    
+    init(keyword: Token) {
+        self.keyword = keyword
     }
     
     func accept<Visitor: ExprVisitor>(visitor: Visitor) throws -> Visitor.ER {

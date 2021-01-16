@@ -15,11 +15,14 @@ final class LoxFunction: Callable, CustomStringConvertible {
     var description: String { "<fn \(declaration.name.lexeme)>" }
     private let declaration: FuncStmt
     private let closure: Environment
+    private let isInitializer: Bool
     
     init(declaration: FuncStmt,
-         closure: Environment) {
+         closure: Environment,
+         isInitializer: Bool) {
         self.closure = closure
         self.declaration = declaration
+        self.isInitializer = isInitializer
     }
     
     func call(_ interpreter: Interpreter, _ args: [LoxObject]) throws -> LoxObject {
@@ -30,9 +33,27 @@ final class LoxFunction: Callable, CustomStringConvertible {
         do {
             try interpreter.execute(declaration.body, env)
         } catch let e as Interpreter.Return {
+            if isInitializer {
+                return try returnInit()
+            }
             return e.obj
         }
+        
+        if isInitializer {
+            return try returnInit()
+        }
         return .null
+    }
+    
+    func bind(_ instance: LoxInstance) -> LoxFunction {
+        let env = Environment(enclosing: closure)
+        env.define(name: "this", value: .instance(instance))
+        return LoxFunction(declaration: declaration, closure: env, isInitializer: true)
+    }
+    
+    func returnInit() throws -> LoxObject {
+        guard let initializer = closure.get("init") else { fatalError() }
+        return initializer
     }
 }
 

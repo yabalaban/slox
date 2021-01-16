@@ -6,6 +6,7 @@ protocol StmtVisitor {
     associatedtype SR
     
     func visit(_ stmt: BlockStmt) throws -> SR
+    func visit(_ stmt: ClassStmt) throws -> SR
     func visit(_ stmt: ExpressionStmt) throws -> SR
     func visit(_ stmt: FuncStmt) throws -> SR
     func visit(_ stmt: IfStmt) throws -> SR
@@ -23,6 +24,20 @@ final class BlockStmt: Stmt {
     
     init(statements: [Stmt]) {
         self.statements = statements
+    }
+    
+    func accept<Visitor: StmtVisitor>(visitor: Visitor) throws -> Visitor.SR {
+        return try visitor.visit(self)
+    }
+}
+
+final class ClassStmt: Stmt {
+    let name: Token
+    let methods: [FuncStmt]
+    
+    init(name: Token, methods: [FuncStmt]) {
+        self.name = name
+        self.methods = methods
     }
     
     func accept<Visitor: StmtVisitor>(visitor: Visitor) throws -> Visitor.SR {

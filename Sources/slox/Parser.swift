@@ -30,7 +30,7 @@ final class Parser {
 
 // MARK: - Expressions grammar
 private extension Parser {
-    // assignment → IDENTIFIER "=" assignment
+    // assignment → ( call "." )? IDENTIFIER "=" assignment
     //            | logicOr ;
     func assignment() throws -> Expr {
         let expr = try or()
@@ -41,6 +41,9 @@ private extension Parser {
                 throw ParserError(token: equals, message: "Invalid assignment target.")
             }
             return AssignExpr(name: expr.name, value: value)
+        } else if let gexpr = expr as? GetExpr {
+            let value = try assignment()
+            return SetExpr(name: gexpr.name, object: gexpr.object, value: value)
         } else {
             return expr
         }
@@ -82,11 +85,18 @@ private extension Parser {
         return try unary(unary, call, .bang, .minus)
     }
     
-    // call → primary ( "(" arguments? ")" )* ;
+    // call → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
     func call() throws -> Expr {
         var expr = try primary()
-        while match(.leftParen) {
-            expr = try finishCall(expr)
+        while true {
+            if match(.leftParen) {
+                expr = try finishCall(expr)
+            } else if match(.dot) {
+                let name = try consume(.identifier, message: "Expect property name after '.'.")
+                expr = GetExpr(name: name, object: expr)
+            } else {
+                break
+            }
         }
         return expr
     }
@@ -108,6 +118,7 @@ private extension Parser {
             try consume(.rightParen, message: "Expect ')' after expression.")
             return GroupingExpr(expr: expr)
         }
+        if match(.this) { return ThisExpr(keyword: previous) }
         if match(.identifier) { return VariableExpr(name: previous) }
         throw ParserError(token: peek, message: "Expect expression.")
     }
@@ -115,11 +126,13 @@ private extension Parser {
 
 // MARK: - Statements grammar
 private extension Parser {
-    // declaration → funcDecl
+    // declaration → classDecl
+    //             | funcDecl
     //             | varDecl
     //             | statement ;
     func declaration() -> Stmt? {
         do {
+            if match(.class) { return try classDeclaration() }
             if match(.fun) { return try funcDeclaration("function") }
             if match(.var) { return try varDeclaration() }
             return try statement()
@@ -132,8 +145,20 @@ private extension Parser {
         return nil
     }
     
+    // classDecl → "class" IDENTIFIER "{" function* "}" ;
+    func classDeclaration() throws -> Stmt {
+        let name = try consume(.identifier, message: "Expect class name.")
+        try consume(.leftBrace, message: "Expect '{' before class body.")
+        var methods = [FuncStmt]()
+        while !check(.rightBrace) && !done {
+            methods.append(try funcDeclaration("method"))
+        }
+        try consume(.rightBrace, message: "Expect '}' before class body.")
+        return ClassStmt(name: name, methods: methods)
+    }
+    
     // funDecl → "fun" function ;
-    func funcDeclaration(_ kind: String) throws -> Stmt {
+    func funcDeclaration(_ kind: String) throws -> FuncStmt {
         let name = try consume(.identifier, message: "Expect \(kind) name.")
         try consume(.leftParen, message: "Expect '(' after \(kind) name.")
         var params = [Token]()
