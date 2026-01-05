@@ -166,8 +166,8 @@ class SloxRepl {
         const wasmBytes = await response.arrayBuffer();
 
         // Dynamic imports for WASI and JavaScriptKit runtime
-        const wasiShimUrl = 'https://esm.sh/@bjorn3/browser-wasi-shim@0.3.0';
-        const jskRuntimeUrl = 'https://esm.sh/javascript-kit-swift@0.19.2/Runtime';
+        const wasiShimUrl = 'https://unpkg.com/@bjorn3/browser-wasi-shim@0.3.0/dist/index.js';
+        const jskRuntimeUrl = 'https://unpkg.com/javascript-kit-swift@0.19.2/Runtime/index.js';
 
         const { WASI, File, OpenFile, ConsoleStdout } = await import(wasiShimUrl);
 
