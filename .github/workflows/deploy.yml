@@ -23,21 +23,27 @@ jobs:
 
       - name: Install SwiftWasm
         run: |
-          curl -L -o swiftwasm.tar.gz "https://github.com/swiftwasm/swift/releases/download/swift-wasm-5.10.0-RELEASE/swift-wasm-5.10.0-RELEASE-ubuntu22.04_x86_64.tar.gz"
+          set -ex
+          curl -L -o swiftwasm.tar.gz "https://github.com/swiftwasm/swift/releases/download/swift-wasm-5.9.2-RELEASE/swift-wasm-5.9.2-RELEASE-ubuntu22.04_x86_64.tar.gz"
           mkdir -p $HOME/swiftwasm
-          tar -xzf swiftwasm.tar.gz -C $HOME/swiftwasm --strip-components=1
+          tar -xzf swiftwasm.tar.gz -C $HOME/swiftwasm --strip-components=2
           echo "$HOME/swiftwasm/usr/bin" >> $GITHUB_PATH
+          $HOME/swiftwasm/usr/bin/swift --version
 
       - name: Install Carton
         run: |
-          curl -L -o carton.tar.gz "https://github.com/swiftwasm/carton/releases/latest/download/carton-ubuntu-latest.tar.gz"
+          set -ex
+          curl -L -o carton.tar.gz "https://github.com/swiftwasm/carton/releases/download/1.1.3/carton-ubuntu-latest.tar.gz"
           tar -xzf carton.tar.gz
           chmod +x carton
           sudo mv carton /usr/local/bin/
+          carton --version
 
       - name: Build WASM Bundle
         run: |
+          set -ex
           carton bundle --product slox-wasm --wasm-optimizations size
+          ls -la Bundle/
           mv Bundle/* web/ || true
 
       - name: Setup Pages
