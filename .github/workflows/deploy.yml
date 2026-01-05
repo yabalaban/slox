@@ -31,22 +31,12 @@ jobs:
           echo "$HOME/swiftwasm/usr/bin" >> $GITHUB_PATH
           $HOME/swiftwasm/usr/bin/swift --version
 
-      - name: Install Carton
+      - name: Build WASM
         run: |
           set -ex
-          # Download carton binary directly
-          curl -L -o carton "https://github.com/swiftwasm/carton/releases/download/1.1.3/carton-x86_64-unknown-linux-gnu"
-          file carton
-          chmod +x carton
-          sudo mv carton /usr/local/bin/
-          carton --version
-
-      - name: Build WASM Bundle
-        run: |
-          set -ex
-          carton bundle --product slox-wasm --wasm-optimizations size
-          ls -la Bundle/
-          mv Bundle/* web/ || true
+          swift build --triple wasm32-unknown-wasi -c release --product slox-wasm
+          ls -la .build/release/
+          cp .build/release/slox-wasm.wasm web/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
