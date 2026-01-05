@@ -21,21 +21,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup SwiftWasm
+      - name: Install SwiftWasm
         run: |
-          # Download and install SwiftWasm
-          curl -L -o swiftwasm.tar.gz "https://github.com/swiftwasm/swift/releases/download/swift-wasm-6.0-SNAPSHOT-2024-10-25-a/swift-wasm-6.0-SNAPSHOT-2024-10-25-a-ubuntu22.04_x86_64.tar.gz"
+          curl -L -o swiftwasm.tar.gz "https://github.com/swiftwasm/swift/releases/download/swift-wasm-5.10.0-RELEASE/swift-wasm-5.10.0-RELEASE-ubuntu22.04_x86_64.tar.gz"
           mkdir -p $HOME/swiftwasm
           tar -xzf swiftwasm.tar.gz -C $HOME/swiftwasm --strip-components=1
           echo "$HOME/swiftwasm/usr/bin" >> $GITHUB_PATH
 
-      - name: Build WASM
+      - name: Install Carton
         run: |
-          # Build the WASM target
-          swift build --triple wasm32-unknown-wasi -c release --product slox-wasm
-          
-          # Copy the WASM file to web directory
-          cp .build/release/slox-wasm.wasm web/
+          curl -L -o carton.tar.gz "https://github.com/swiftwasm/carton/releases/latest/download/carton-ubuntu-latest.tar.gz"
+          tar -xzf carton.tar.gz
+          chmod +x carton
+          sudo mv carton /usr/local/bin/
+
+      - name: Build WASM Bundle
+        run: |
+          carton bundle --product slox-wasm --wasm-optimizations size
+          mv Bundle/* web/ || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

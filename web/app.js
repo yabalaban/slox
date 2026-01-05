@@ -96,7 +96,7 @@ class SloxRepl {
         const loadingEl = document.getElementById('loading');
 
         try {
-            // Set up ready callback
+            // Set up ready callback before loading WASM
             window.sloxReady = () => {
                 console.log('WASM ready callback received');
             };
@@ -104,54 +104,32 @@ class SloxRepl {
             // Initialize slox namespace
             window.slox = {};
 
-            // Try to load the WASM module
-            const response = await fetch('slox-wasm.wasm');
-            if (!response.ok) {
-                throw new Error(`Failed to fetch WASM: ${response.status}`);
+            // Try to load carton-generated bundle first
+            let wasmLoaded = false;
+
+            // Check for carton bundle
+            try {
+                const bundleScript = document.createElement('script');
+                bundleScript.src = 'slox-wasm.js';
+                await new Promise((resolve, reject) => {
+                    bundleScript.onload = resolve;
+                    bundleScript.onerror = reject;
+                    document.head.appendChild(bundleScript);
+                });
+                wasmLoaded = true;
+            } catch (e) {
+                console.log('Carton bundle not found, trying manual load...');
             }
 
-            const wasmBytes = await response.arrayBuffer();
-
-            // Import browser_wasi_shim for WASI support
-            const { WASI, File, OpenFile, ConsoleStdout } = await import(
-                'https://esm.sh/@aspect-build/aspect-cli@0.19.2'
-            );
-
-            // Set up WASI with console output
-            const wasi = new WASI([], [], [
-                new OpenFile(new File([])), // stdin
-                ConsoleStdout.lineBuffered(msg => {
-                    this.terminal.writeln(msg);
-                }),
-                ConsoleStdout.lineBuffered(msg => {
-                    console.error('WASM stderr:', msg);
-                }),
-            ]);
-
-            // Import JavaScriptKit runtime
-            const { SwiftRuntime } = await import(
-                'https://esm.sh/@aspect-build/aspect-cli@0.19.2/JavaScriptKit/Runtime'
-            );
-            const swift = new SwiftRuntime();
-
-            // Instantiate WASM
-            const { instance } = await WebAssembly.instantiate(wasmBytes, {
-                wasi_snapshot_preview1: wasi.wasiImport,
-                javascript_kit: swift.importObjects()
-            });
-
-            // Initialize WASI and Swift runtime
-            swift.setInstance(instance);
-            wasi.initialize(instance);
-
-            // Start the WASM module
-            if (instance.exports._start) {
-                instance.exports._start();
-            } else if (instance.exports.main) {
-                instance.exports.main();
+            // If carton bundle not available, try manual loading
+            if (!wasmLoaded) {
+                await this.loadWasmManually();
             }
 
-            // Initialize the interpreter with output callback
+            // Wait a bit for WASM to initialize
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Check if slox API is available
             if (window.slox && window.slox.initInterpreter) {
                 window.slox.initInterpreter((output) => {
                     this.terminal.writeln(output);
@@ -175,6 +153,55 @@ class SloxRepl {
             loadingEl.classList.add('hidden');
             this.terminal.write(PROMPT);
             this.terminal.focus();
+        }
+    }
+
+    async loadWasmManually() {
+        // Try to load the WASM module manually
+        const response = await fetch('slox-wasm.wasm');
+        if (!response.ok) {
+            throw new Error(`Failed to fetch WASM: ${response.status}`);
+        }
+
+        const wasmBytes = await response.arrayBuffer();
+
+        // Dynamic imports for WASI and JavaScriptKit runtime
+        const wasiShimUrl = 'https://esm.sh/@bjorn3/browser-wasi-shim@0.3.0';
+        const jskRuntimeUrl = 'https://esm.sh/javascript-kit-swift@0.19.2/Runtime';
+
+        const { WASI, File, OpenFile, ConsoleStdout } = await import(wasiShimUrl);
+
+        // Set up WASI with console output
+        const terminal = this.terminal;
+        const wasi = new WASI([], [], [
+            new OpenFile(new File([])), // stdin
+            ConsoleStdout.lineBuffered(msg => {
+                terminal.writeln(msg);
+            }),
+            ConsoleStdout.lineBuffered(msg => {
+                console.error('WASM stderr:', msg);
+            }),
+        ]);
+
+        // Import JavaScriptKit runtime
+        const { SwiftRuntime } = await import(jskRuntimeUrl);
+        const swift = new SwiftRuntime();
+
+        // Instantiate WASM
+        const { instance } = await WebAssembly.instantiate(wasmBytes, {
+            wasi_snapshot_preview1: wasi.wasiImport,
+            javascript_kit: swift.wasmImports
+        });
+
+        // Initialize WASI and Swift runtime
+        swift.setInstance(instance);
+        wasi.initialize(instance);
+
+        // Start the WASM module
+        if (instance.exports._start) {
+            instance.exports._start();
+        } else if (instance.exports.main) {
+            instance.exports.main();
         }
     }
 
