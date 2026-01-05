@@ -5,20 +5,23 @@
 final class ErrorConsumer {
     private let onError: () -> Void
     private let onRuntimeError: () -> Void
-    
+    private let outputHandler: OutputHandler
+
     init(onError: @escaping () -> Void,
-         onRuntimeError: @escaping () -> Void) {
+         onRuntimeError: @escaping () -> Void,
+         outputHandler: @escaping OutputHandler = { print($0) }) {
         self.onError = onError
         self.onRuntimeError = onRuntimeError
+        self.outputHandler = outputHandler
     }
-    
+
     private func report(line: UInt, `where`: String, message: String) {
-        print("[line \(line)] Error\(`where`.count > 0 ? " \(`where`)" : ""): \(message)")
+        outputHandler("[line \(line)] Error\(`where`.count > 0 ? " \(`where`)" : ""): \(message)")
         onError()
     }
-    
+
     private func runtimeReport(line: UInt, `where`: String, message: String) {
-        print("[line \(line)] Runtime error\(`where`.count > 0 ? " \(`where`)" : ""): \(message)")
+        outputHandler("[line \(line)] Runtime error\(`where`.count > 0 ? " \(`where`)" : ""): \(message)")
         onRuntimeError()
     }
 }

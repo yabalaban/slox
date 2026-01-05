@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>slox – Lox Interpreter in Swift/WASM</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>s(wift)lox</h1>
+            <p>Lox language interpreter written in Swift, compiled to WebAssembly</p>
+        </header>
+
+        <div class="terminal-container">
+            <div id="terminal"></div>
+        </div>
+
+        <div class="info">
+            <h2>About Lox</h2>
+            <p>Lox is a dynamically-typed scripting language from the book
+               <a href="https://craftinginterpreters.com/" target="_blank">Crafting Interpreters</a>
+               by Robert Nystrom.</p>
+
+            <h3>Quick Examples</h3>
+            <div class="examples">
+                <pre><code>// Variables
+var greeting = "Hello, World!";
+print(greeting);
+
+// Functions
+fun fibonacci(n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+print(fibonacci(10));
+
+// Classes
+class Animal {
+    init(name) {
+        this.name = name;
+    }
+    speak() {
+        print(this.name + " makes a sound");
+    }
+}
+
+class Dog < Animal {
+    speak() {
+        print(this.name + " barks!");
+    }
+}
+
+var dog = Dog("Rex");
+dog.speak();</code></pre>
+            </div>
+        </div>
+
+        <footer>
+            <p>Built with <a href="https://swiftwasm.org/" target="_blank">SwiftWasm</a> |
+               <a href="https://github.com/yabalaban/slox" target="_blank">Source Code</a></p>
+        </footer>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Loading WASM module...</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.min.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
