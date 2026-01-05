@@ -26,7 +26,8 @@ jobs:
           set -ex
           curl -L -o swiftwasm.tar.gz "https://github.com/swiftwasm/swift/releases/download/swift-wasm-5.9.2-RELEASE/swift-wasm-5.9.2-RELEASE-ubuntu22.04_x86_64.tar.gz"
           mkdir -p $HOME/swiftwasm
-          tar -xzf swiftwasm.tar.gz -C $HOME/swiftwasm --strip-components=2
+          tar -xzf swiftwasm.tar.gz -C $HOME/swiftwasm --strip-components=1
+          ls -la $HOME/swiftwasm/
           echo "$HOME/swiftwasm/usr/bin" >> $GITHUB_PATH
           $HOME/swiftwasm/usr/bin/swift --version
 
