@@ -35,8 +35,7 @@ class ConsoleOutput {
     write(data) {
         const text = new TextDecoder().decode(data);
         this.buffer += text;
-        const lines = this.buffer.split('
-');
+        const lines = this.buffer.split('\n');
         for (let i = 0; i < lines.length - 1; i++) {
             this.writeFn(lines[i]);
         }
