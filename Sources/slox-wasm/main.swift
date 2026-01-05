@@ -13,7 +13,7 @@ JavaScriptEventLoop.installGlobalExecutor()
 // Set up the clock provider to use JavaScript's Date.now()
 clockProvider = {
     let date = JSObject.global.Date.function!.new()
-    return date.getTime().number! / 1000.0
+    return date.getTime!().number! / 1000.0
 }
 
 // Create the slox namespace in the global scope
@@ -38,13 +38,13 @@ let initInterpreterClosure = JSClosure { args -> JSValue in
 
     let callbackClosure = JSClosure { [callback] outputArgs -> JSValue in
         if outputArgs.count > 0 {
-            _ = callback.callAsFunction(outputArgs[0])
+            _ = callback.callAsFunction!(outputArgs[0])
         }
         return .undefined
     }
 
     driver = Driver { output in
-        _ = callbackClosure.callAsFunction(output)
+        _ = callbackClosure(output)
     }
 
     return .undefined
@@ -65,14 +65,13 @@ let getEnvironmentClosure = JSClosure { _ -> JSValue in
 }
 
 // Export functions to the slox namespace
-sloxNamespace.initInterpreter = .function(initInterpreterClosure)
-sloxNamespace.execute = .function(executeClosure)
-sloxNamespace.getEnvironment = .function(getEnvironmentClosure)
+sloxNamespace.initInterpreter = JSValue.function(initInterpreterClosure)
+sloxNamespace.execute = JSValue.function(executeClosure)
+sloxNamespace.getEnvironment = JSValue.function(getEnvironmentClosure)
 
 // Signal that WASM is ready
 if let readyFn = JSObject.global.sloxReady.function {
     _ = readyFn()
 }
 
-// Keep the runtime alive
-RunLoop.main.run()
+// The JavaScriptEventLoop keeps the runtime alive
