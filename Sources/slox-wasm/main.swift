@@ -4,11 +4,7 @@
 //
 
 import JavaScriptKit
-import JavaScriptEventLoop
 import SloxCore
-
-// Initialize the JavaScript event loop for async operations
-JavaScriptEventLoop.installGlobalExecutor()
 
 // Set up the clock provider to use JavaScript's Date.now()
 clockProvider = {

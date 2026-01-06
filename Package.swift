@@ -32,7 +32,6 @@ let package = Package(
             dependencies: [
                 "SloxCore",
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
-                .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
             ],
             path: "Sources/slox-wasm"
         ),
