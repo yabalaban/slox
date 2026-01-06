@@ -17,9 +17,6 @@ var getEnvironmentClosure: JSClosure?
 var getGlobalsClosure: JSClosure?
 var resetClosure: JSClosure?
 
-// Build timestamp (injected at build time)
-let buildTime = "__BUILD_TIME__"
-
 // Export initialization function for JavaScript to call
 @_cdecl("slox_init")
 func sloxInit() {
@@ -88,8 +85,8 @@ func sloxInit() {
     sloxNamespace.getGlobals = .object(getGlobalsClosure!)
     sloxNamespace.reset = .object(resetClosure!)
 
-    // Signal that WASM is ready, passing build time
+    // Signal that WASM is ready
     if let readyFn = JSObject.global.sloxReady.function {
-        _ = readyFn(JSValue.string(buildTime))
+        _ = readyFn()
     }
 }
