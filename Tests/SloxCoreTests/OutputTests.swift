@@ -1,0 +1,206 @@
+import XCTest
+@testable import SloxCore
+
+final class OutputTests: XCTestCase {
+
+    func testPrintOutputsToHandler() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: "print(\"Hello, World!\");")
+
+        XCTAssertEqual(output, ["Hello, World!"])
+    }
+
+    func testPrintNumber() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: "print(42);")
+
+        XCTAssertEqual(output, ["42"])
+    }
+
+    func testPrintExpression() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: "print(2 + 3 * 4);")
+
+        XCTAssertEqual(output, ["14"])
+    }
+
+    func testMultiplePrints() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: """
+            print("one");
+            print("two");
+            print("three");
+        """)
+
+        XCTAssertEqual(output, ["one", "two", "three"])
+    }
+
+    func testVariableAndPrint() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: "var x = 10;")
+        driver.run(source: "print(x);")
+
+        XCTAssertEqual(output, ["10"])
+    }
+
+    func testFunctionCallPrintsOutput() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: """
+            fun greet(name) {
+                print("Hello, " + name + "!");
+            }
+        """)
+        driver.run(source: "greet(\"Swift\");")
+
+        XCTAssertEqual(output, ["Hello, Swift!"])
+    }
+
+    func testPrintNil() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: "print(nil);")
+
+        XCTAssertEqual(output, ["nil"])
+    }
+
+    func testPrintBoolean() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: "print(true);")
+        driver.run(source: "print(false);")
+
+        XCTAssertEqual(output, ["true", "false"])
+    }
+
+    func testClassMethodPrintsOutput() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: """
+            class Greeter {
+                init(name) { this.name = name; }
+                greet() { print("Hi, " + this.name); }
+            }
+            var g = Greeter("WASM");
+            g.greet();
+        """)
+
+        XCTAssertEqual(output, ["Hi, WASM"])
+    }
+
+    func testFibonacci() {
+        var output: [String] = []
+        let driver = Driver { output.append($0) }
+
+        driver.run(source: """
+            fun fib(n) {
+                if (n < 2) return n;
+                return fib(n - 1) + fib(n - 2);
+            }
+            print(fib(10));
+        """)
+
+        XCTAssertEqual(output, ["55"])
+    }
+
+    // MARK: - REPL-style tests (runRepl returns evaluation result)
+
+    func testReplExpression() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "2 + 3;")
+        XCTAssertEqual(result, "5.0")
+    }
+
+    func testReplString() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "\"hello\";")
+        XCTAssertEqual(result, "hello")
+    }
+
+    func testReplNil() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "nil;")
+        XCTAssertEqual(result, "nil")
+    }
+
+    func testReplBoolean() {
+        let driver = Driver { _ in }
+        XCTAssertEqual(driver.runRepl(source: "true;"), "true")
+        XCTAssertEqual(driver.runRepl(source: "false;"), "false")
+    }
+
+    func testReplVariable() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "var x = 42;")
+        XCTAssertEqual(result, "42.0")
+    }
+
+    func testReplFunctionCall() {
+        let driver = Driver { _ in }
+        driver.runRepl(source: "fun add(a, b) { return a + b; }")
+        let result = driver.runRepl(source: "add(10, 20);")
+        XCTAssertEqual(result, "30.0")
+    }
+
+    func testReplFunctionDefinition() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "fun greet() { return \"hi\"; }")
+        XCTAssertEqual(result, "nil")
+    }
+
+    // MARK: - Magic command support tests
+
+    func testGetGlobalsContainsBuiltins() {
+        let driver = Driver { _ in }
+        let globals = driver.getGlobals()
+        XCTAssertTrue(globals.contains("clock"))
+        XCTAssertTrue(globals.contains("print"))
+    }
+
+    func testGetGlobalsContainsUserDefinedFunction() {
+        let driver = Driver { _ in }
+        _ = driver.runRepl(source: "fun myFunc() { return 42; }")
+        let globals = driver.getGlobals()
+        XCTAssertTrue(globals.contains("myFunc"))
+    }
+
+    func testGetEnvironmentContainsVariable() {
+        let driver = Driver { _ in }
+        _ = driver.runRepl(source: "var x = 10;")
+        let env = driver.getEnvironment()
+        XCTAssertTrue(env.contains("x"))
+    }
+
+    func testResetClearsState() {
+        let driver = Driver { _ in }
+        _ = driver.runRepl(source: "var x = 10;")
+        driver.reset()
+        // After reset, x should not exist - running x should cause error
+        let result = driver.runRepl(source: "x;")
+        XCTAssertNil(result) // Error should return nil
+    }
+
+    func testResetPreservesBuiltins() {
+        let driver = Driver { _ in }
+        _ = driver.runRepl(source: "var x = 10;")
+        driver.reset()
+        // Built-ins should still work
+        let globals = driver.getGlobals()
+        XCTAssertTrue(globals.contains("clock"))
+        XCTAssertTrue(globals.contains("print"))
+    }
+}

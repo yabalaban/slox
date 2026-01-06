@@ -112,7 +112,6 @@ private extension Scanner {
         var depth = 1
         while depth != 0 && current != source.endIndex {
             let char = advance()
-            print(char)
             switch char {
             case "/":
                 if match("*") {

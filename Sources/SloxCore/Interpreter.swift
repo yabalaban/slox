@@ -6,24 +6,26 @@ final class Interpreter {
     struct Return: Error {
         let obj: LoxObject
     }
-    
+
     let globals = Environment()
     lazy var environment: Environment = { globals }()
     private let errorConsumer: RuntimeErrorConsumer
+    private let outputHandler: OutputHandler
     private var locals = [String: Int]()
-    
-    init(errorConsumer: RuntimeErrorConsumer) {
+
+    init(errorConsumer: RuntimeErrorConsumer, outputHandler: @escaping OutputHandler = { print($0) }) {
         self.errorConsumer = errorConsumer
+        self.outputHandler = outputHandler
         globals.define(
             name: "clock",
             value: .callable(ClockNativeFunction())
         )
         globals.define(
             name: "print",
-            value: .callable(PrintNativeFunction())
+            value: .callable(PrintNativeFunction(outputHandler: outputHandler))
         )
     }
-    
+
     func execute(_ stmts: [Stmt], _ env: Environment) throws {
         let previous = environment
         defer { environment = previous }
@@ -32,7 +34,7 @@ final class Interpreter {
             try execute(stmt)
         }
     }
-    
+
     func interpret(_ stmts: [Stmt]) {
         do {
             for stmt in stmts {
@@ -44,7 +46,35 @@ final class Interpreter {
             fatalError(error.localizedDescription)
         }
     }
-    
+
+    /// REPL-style interpret that returns the result of the last expression
+    func interpretRepl(_ stmts: [Stmt]) -> String? {
+        do {
+            var lastResult: LoxObject = .null
+            for stmt in stmts {
+                if let exprStmt = stmt as? ExpressionStmt {
+                    lastResult = try evaluate(exprStmt.expression)
+                } else if let varStmt = stmt as? VarStmt {
+                    try execute(stmt)
+                    if varStmt.initializer != nil {
+                        lastResult = try environment.get(name: varStmt.name)
+                    } else {
+                        lastResult = .null
+                    }
+                } else {
+                    try execute(stmt)
+                    lastResult = .null
+                }
+            }
+            return lastResult.description
+        } catch let e as RuntimeError {
+            errorConsumer.runtimeError(token: e.token, message: e.message)
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
     func resolve(_ expr: Expr, _ depth: Int) {
         locals[expr.description] = depth
     }
@@ -53,7 +83,7 @@ final class Interpreter {
 // MARK: - Expressions Visitor
 extension Interpreter: ExprVisitor {
     typealias ER = LoxObject
-    
+
     func visit(_ expr: AssignExpr) throws -> LoxObject {
         let value = try evaluate(expr.value)
         if let distance = locals[expr.description] {
@@ -63,11 +93,11 @@ extension Interpreter: ExprVisitor {
         }
         return value
     }
-    
+
     func visit(_ expr: BinaryExpr) throws -> LoxObject {
         let left = try evaluate(expr.left)
         let right = try evaluate(expr.right)
-        
+
         switch (left, right) {
         case (.double(let lhs), .double(let rhs)):
             switch expr.op.type {
@@ -81,7 +111,7 @@ extension Interpreter: ExprVisitor {
                 return .double(lhs + rhs)
             case .slash:
                 guard rhs != 0 else {
-                    throw RuntimeError(token: expr.op, message: "Не надо так...")
+                    throw RuntimeError(token: expr.op, message: "Division by zero.")
                 }
                 return .double(lhs / rhs)
             case .star:
@@ -128,7 +158,7 @@ extension Interpreter: ExprVisitor {
             }
         }
     }
-    
+
     func visit(_ expr: CallExpr) throws -> LoxObject {
         let obj = try evaluate(expr.calee)
         var args = [LoxObject]()
@@ -148,7 +178,7 @@ extension Interpreter: ExprVisitor {
         }
         return try callable.call(self, args)
     }
-    
+
     func visit(_ expr: GetExpr) throws -> LoxObject {
         let obj = try evaluate(expr.object)
         guard case let .instance(inst) = obj else {
@@ -156,18 +186,18 @@ extension Interpreter: ExprVisitor {
         }
         return try inst.get(expr.name)
     }
-    
+
     func visit(_ expr: GroupingExpr) throws -> LoxObject {
         return try evaluate(expr.expr)
     }
-    
+
     func visit(_ expr: LiteralExpr) throws -> LoxObject {
         return expr.object
     }
-    
+
     func visit(_ expr: LogicalExpr) throws -> LoxObject {
         let left = try evaluate(expr.left)
-        
+
         switch expr.op.type {
         case .and where !isTruthy(left):
             return .bool(false)
@@ -177,7 +207,7 @@ extension Interpreter: ExprVisitor {
             return try evaluate(expr.right)
         }
     }
-    
+
     func visit(_ expr: SetExpr) throws -> LoxObject {
         let obj = try evaluate(expr.object)
         guard case let .instance(inst) = obj else {
@@ -187,7 +217,7 @@ extension Interpreter: ExprVisitor {
         inst.set(expr.name, val)
         return val
     }
-    
+
     func visit(_ expr: SuperExpr) throws -> LoxObject {
         guard let distance = locals[expr.description] else { return .null }
         guard case let .klass(superclass) = try environment.get(at: distance, "super") else { return .null }
@@ -197,11 +227,11 @@ extension Interpreter: ExprVisitor {
         }
         return .callable(method.bind(object))
     }
-    
+
     func visit(_ expr: ThisExpr) throws -> LoxObject {
         return .null
     }
-    
+
     func visit(_ expr: UnaryExpr) throws -> LoxObject {
         let right = try evaluate(expr.right)
         switch expr.op.type {
@@ -218,7 +248,7 @@ extension Interpreter: ExprVisitor {
             throw RuntimeError(token: expr.op, message: "Invalid unary operation for given operand.")
         }
     }
-    
+
     func visit(_ expr: VariableExpr) throws -> LoxObject {
         return try lookup(expr.name, expr)
     }
@@ -227,11 +257,11 @@ extension Interpreter: ExprVisitor {
 // MARK: - Statements Visitor
 extension Interpreter: StmtVisitor {
     typealias SR = Void
-    
+
     func visit(_ stmt: BlockStmt) throws -> Void {
         try execute(stmt.statements, Environment(enclosing: environment))
     }
-    
+
     func visit(_ stmt: ClassStmt) throws -> Void {
         var superklass: LoxClass?
         if let superclass = stmt.superclass {
@@ -241,13 +271,13 @@ extension Interpreter: StmtVisitor {
             }
             superklass = superk
         }
-        
+
         environment.define(name: stmt.name.lexeme, value: .null)
         if let superklass = superklass {
             environment = Environment(enclosing: environment)
             environment.define(name: "super", value: .klass(superklass))
         }
-        
+
         let methods = stmt.methods.reduce(into: [String: LoxFunction](), { res, method in
             res[method.name.lexeme] = LoxFunction(declaration: method,
                                                   closure: environment,
@@ -259,11 +289,11 @@ extension Interpreter: StmtVisitor {
         }
         environment.assign(name: stmt.name, value: .klass(klass))
     }
-    
+
     func visit(_ stmt: ExpressionStmt) throws -> Void {
         try evaluate(stmt.expression)
     }
-    
+
     func visit(_ stmt: FuncStmt) throws -> Void {
         let function = LoxFunction(declaration: stmt, closure: environment, isInitializer: false)
         environment.define(
@@ -271,7 +301,7 @@ extension Interpreter: StmtVisitor {
             value: .callable(function)
         )
     }
-    
+
     func visit(_ stmt: IfStmt) throws -> Void {
         if isTruthy(try evaluate(stmt.condition)) {
             try execute(stmt.then)
@@ -279,7 +309,7 @@ extension Interpreter: StmtVisitor {
             try execute(`else`)
         }
     }
-    
+
     func visit(_ stmt: ReturnStmt) throws -> Void {
         var value: LoxObject = .null
         if let v = stmt.value {
@@ -287,7 +317,7 @@ extension Interpreter: StmtVisitor {
         }
         throw Return(obj: value)
     }
-    
+
     func visit(_ stmt: VarStmt) throws -> Void {
         var res: LoxObject = .null
         if let initializer = stmt.initializer {
@@ -295,7 +325,7 @@ extension Interpreter: StmtVisitor {
         }
         environment.define(name: stmt.name.lexeme, value: res)
     }
-    
+
     func visit(_ stmt: WhileStmt) throws -> Void {
         while isTruthy(try evaluate(stmt.condition)) {
             try execute(stmt.body)
@@ -309,11 +339,11 @@ private extension Interpreter {
     func evaluate(_ expr: Expr) throws  -> LoxObject {
         return try expr.accept(visitor: self)
     }
-    
+
     func execute(_ stmt: Stmt) throws {
         try stmt.accept(visitor: self)
     }
-    
+
     func isTruthy(_ val: LoxObject) -> Bool {
         switch val {
         case .null:
@@ -324,13 +354,13 @@ private extension Interpreter {
             return true
         }
     }
-    
+
     func isTruthy(_ val: Any?) -> Bool {
         guard val != nil else { return false }
         guard let b = val as? Bool else { return true }
         return b
     }
-    
+
     func isEqual(_ lhs: LoxObject, _ rhs: LoxObject) -> Bool {
         switch (lhs, rhs) {
         case (let .double(l), let .double(r)):
@@ -343,7 +373,7 @@ private extension Interpreter {
             return false
         }
     }
-    
+
     func lookup(_ name: Token, _ expr: VariableExpr) throws -> LoxObject {
         if let distance = locals[expr.description] {
             return try environment.get(at: distance, name)

@@ -1,0 +1,60 @@
+name: Build and Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main, master, claude/* ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftWasm
+        run: |
+          set -ex
+          curl -L -o swiftwasm.tar.gz "https://github.com/swiftwasm/swift/releases/download/swift-wasm-5.9.2-RELEASE/swift-wasm-5.9.2-RELEASE-ubuntu22.04_x86_64.tar.gz"
+          mkdir -p $HOME/swiftwasm
+          tar -xzf swiftwasm.tar.gz -C $HOME/swiftwasm --strip-components=1
+          ls -la $HOME/swiftwasm/
+          echo "$HOME/swiftwasm/usr/bin" >> $GITHUB_PATH
+          $HOME/swiftwasm/usr/bin/swift --version
+
+      - name: Build WASM
+        run: |
+          set -ex
+          swift build --triple wasm32-unknown-wasi -c release --product slox-wasm \
+            -Xswiftc -Xclang-linker -Xswiftc -mexec-model=reactor \
+            -Xlinker --export=slox_init
+          ls -la .build/release/
+          cp .build/release/slox-wasm.wasm web/
+          # Inject build timestamp into JS
+          BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
+          sed -i "s/__BUILD_TIME__/$BUILD_TIME/" web/app.js
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './web'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
