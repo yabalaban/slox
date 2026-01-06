@@ -38,12 +38,6 @@ jobs:
           ls -la .build/release/
           cp .build/release/slox-wasm.wasm web/
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-        with:
-          enablement: true
-          static_site_generator: 'static'
-
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
