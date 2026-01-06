@@ -73,9 +73,9 @@ func sloxInit() {
     }
 
     // Export functions to the slox namespace
-    sloxNamespace.initInterpreter = JSValue.function(initInterpreterClosure!)
-    sloxNamespace.execute = JSValue.function(executeClosure!)
-    sloxNamespace.getEnvironment = JSValue.function(getEnvironmentClosure!)
+    sloxNamespace.initInterpreter = .object(initInterpreterClosure!)
+    sloxNamespace.execute = .object(executeClosure!)
+    sloxNamespace.getEnvironment = .object(getEnvironmentClosure!)
 
     // Signal that WASM is ready
     if let readyFn = JSObject.global.sloxReady.function {
