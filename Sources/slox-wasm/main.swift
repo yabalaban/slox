@@ -47,10 +47,12 @@ func sloxInit() {
     }()
     log("namespace created")
 
-    // Export build time
-    sloxNamespace.buildTime = JSValue.string(buildTime)
+    // Export build time - skip for now, may be causing crash
+    // sloxNamespace.buildTime = JSValue.string(buildTime)
+    log("skipped buildTime")
 
     // Initialize the interpreter with an output callback
+    log("creating initInterpreterClosure...")
     initInterpreterClosure = JSClosure { args -> JSValue in
         log("initInterpreter called with \(args.count) args")
         guard args.count >= 1 else {
