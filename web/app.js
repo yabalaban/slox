@@ -165,9 +165,9 @@ class SloxRepl {
 
         const wasmBytes = await response.arrayBuffer();
 
-        // Import local WASI and JavaScriptKit runtime modules
+        // Import local WASI and official JavaScriptKit runtime
         const { WASI, File, OpenFile, ConsoleStdout } = await import('./wasi-loader.js');
-        const { SwiftRuntime } = await import('./swift-runtime.js');
+        const { SwiftRuntime } = await import('./javascriptkit-runtime.mjs');
 
         // Set up WASI with console output
         const terminal = this.terminal;
