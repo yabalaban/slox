@@ -198,8 +198,7 @@ class SloxRepl {
                 this.ready = true;
 
                 const elapsed = Date.now() - startTime;
-                const buildTime = window.slox.buildTime || 'unknown';
-                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mLoaded ${wasmSize}KB in ${elapsed}ms (built: ${buildTime})\x1b[0m`);
+                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mReady (${wasmSize}KB, ${elapsed}ms)\x1b[0m`);
             } else {
                 throw new Error('API initialization failed');
             }
