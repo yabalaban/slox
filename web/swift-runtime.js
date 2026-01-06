@@ -21,13 +21,13 @@ export class SwiftRuntime {
         return {
             swjs_set_prop: (ref, name, kind, payload1, payload2) => {
                 const obj = this.getObject(ref);
-                const key = this.loadString(name);
+                const key = this.getObject(name);
                 const value = this.decodeValue(kind, payload1, payload2);
                 obj[key] = value;
             },
             swjs_get_prop: (ref, name, payload1, payload2) => {
                 const obj = this.getObject(ref);
-                const key = this.loadString(name);
+                const key = this.getObject(name);
                 const value = obj[key];
                 return this.encodeValue(value, payload1, payload2);
             },
