@@ -1,9 +1,18 @@
-name: Build WASM
+name: Build and Deploy to GitHub Pages
 
 on:
   push:
     branches: [ main, master, claude/* ]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -35,8 +44,18 @@ jobs:
           ls -la .build/release/
           cp .build/release/slox-wasm.wasm web/
 
-      - name: Upload web artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: slox-web
-          path: web/
+          path: './web'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
