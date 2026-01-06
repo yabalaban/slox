@@ -282,9 +282,8 @@ class SloxRepl {
         if (code === 'clear') {
             this.terminal.clear();
         } else if (code === 'help') {
-            for (const line of MANPAGE.split('\n')) {
-                this.terminal.writeln(line);
-            }
+            // Convert \n to \r\n for proper terminal rendering
+            this.terminal.write(MANPAGE.replace(/\n/g, '\r\n'));
         } else if (this.wasmLoaded && window.slox?.execute) {
             try {
                 window.slox.execute(code);

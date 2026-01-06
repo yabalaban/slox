@@ -35,5 +35,10 @@ let package = Package(
             ],
             path: "Sources/slox-wasm"
         ),
+        .testTarget(
+            name: "SloxCoreTests",
+            dependencies: ["SloxCore"],
+            path: "Tests/SloxCoreTests"
+        ),
     ]
 )
