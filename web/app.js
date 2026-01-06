@@ -1,6 +1,7 @@
 // slox Web REPL
 
 const PROMPT = '\x1b[32m>>>\x1b[0m ';
+const CONTINUATION_PROMPT = '\x1b[32m...\x1b[0m ';
 
 const MANPAGE = `\x1b[1mSLOX(1)                       User Commands                        SLOX(1)\x1b[0m
 
@@ -52,6 +53,13 @@ const MANPAGE = `\x1b[1mSLOX(1)                       User Commands             
     \x1b[32mCtrl+C\x1b[0m           Cancel input
     \x1b[32mCtrl+L\x1b[0m           Clear screen
     \x1b[32mUp/Down\x1b[0m          Command history
+    \x1b[32mLeft/Right\x1b[0m       Move cursor
+    \x1b[32mCtrl+Left/Right\x1b[0m  Move by word
+    \x1b[32mHome/End\x1b[0m         Start/end of line
+
+\x1b[1mMULTILINE INPUT\x1b[0m
+    Incomplete statements (unclosed braces/strings) continue
+    on the next line with a "..." prompt.
 
 \x1b[1mMAGIC COMMANDS\x1b[0m
     \x1b[36m%env\x1b[0m             Show current environment (local scope)
@@ -76,10 +84,12 @@ class SloxRepl {
     constructor() {
         this.terminal = null;
         this.line = '';
+        this.cursor = 0; // Cursor position within current line
         this.history = [];
         this.historyPos = -1;
         this.ready = false;
         this.wasmLoaded = false;
+        this.multilineBuffer = []; // For multiline input
         this.init();
     }
 
@@ -145,20 +155,17 @@ class SloxRepl {
         const startTime = Date.now();
 
         try {
-            console.log('[app] Starting WASM load');
             window.slox = {};
-            window.sloxReady = () => { console.log('[app] sloxReady callback'); };
+            window.sloxReady = () => {};
 
             const response = await fetch('slox-wasm.wasm');
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
             const wasmBytes = await response.arrayBuffer();
             const wasmSize = (wasmBytes.byteLength / 1024).toFixed(1);
-            console.log(`[app] WASM fetched: ${wasmSize}KB`);
 
             const { WASI, File, OpenFile, ConsoleStdout } = await import('./wasi-loader.js');
             const { SwiftRuntime } = await import('./javascriptkit-runtime.mjs');
-            console.log('[app] WASI and SwiftRuntime loaded');
 
             const terminal = this.terminal;
             const wasi = new WASI([], [], [
@@ -168,47 +175,36 @@ class SloxRepl {
             ]);
 
             const swift = new SwiftRuntime();
-            console.log('[app] Instantiating WASM...');
             const { instance } = await WebAssembly.instantiate(wasmBytes, {
                 wasi_snapshot_preview1: wasi.wasiImport,
                 javascript_kit: swift.wasmImports
             });
-            console.log('[app] WASM instantiated');
 
             swift.setInstance(instance);
-            console.log('[app] SwiftRuntime instance set');
             wasi.initialize(instance);
-            console.log('[app] WASI initialized');
 
-            console.log('[app] Calling _initialize...');
             if (instance.exports._initialize) instance.exports._initialize();
-            console.log('[app] Calling slox_init...');
             if (instance.exports.slox_init) instance.exports.slox_init();
-            console.log('[app] slox_init returned');
 
             await new Promise(r => setTimeout(r, 50));
-            console.log('[app] window.slox:', window.slox);
-            console.log('[app] initInterpreter exists:', !!window.slox?.initInterpreter);
 
             if (window.slox?.initInterpreter) {
-                console.log('[app] Calling initInterpreter...');
                 const initOk = window.slox.initInterpreter(out => {
-                    console.log('[app] Output callback:', out);
                     this.terminal.writeln(out);
                 });
-                console.log('[app] initInterpreter returned:', initOk);
                 if (!initOk) throw new Error('initInterpreter returned false');
 
                 this.wasmLoaded = true;
                 this.ready = true;
 
                 const elapsed = Date.now() - startTime;
-                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mReady (${wasmSize}KB, ${elapsed}ms)\x1b[0m`);
+                const buildTime = window.slox.getBuildTime?.() || 'unknown';
+                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mReady (${wasmSize}KB, ${elapsed}ms, built: ${buildTime})\x1b[0m`);
             } else {
                 throw new Error('API initialization failed');
             }
         } catch (e) {
-            console.error('[app] WASM error:', e);
+            console.error('WASM load error:', e);
             this.terminal.writeln(`\x1b[31m✗\x1b[0m \x1b[38;5;242mWASM error: ${e.message}\x1b[0m`);
             this.ready = true;
         }
@@ -219,19 +215,20 @@ class SloxRepl {
         this.terminal.focus();
     }
 
+    getCurrentPrompt() {
+        return this.multilineBuffer.length > 0 ? CONTINUATION_PROMPT : PROMPT;
+    }
+
     handleInput(data) {
         if (!this.ready) return;
 
-        // Handle escape sequences as a unit
-        if (data === '\x1b[A') {
-            this.historyUp();
+        // Handle escape sequences
+        if (data.startsWith('\x1b[')) {
+            this.handleEscapeSequence(data);
             return;
         }
-        if (data === '\x1b[B') {
-            this.historyDown();
-            return;
-        }
-        if (data === '\x1b[C' || data === '\x1b[D') {
+        if (data.startsWith('\x1b')) {
+            // Other escape sequences - ignore
             return;
         }
 
@@ -240,25 +237,166 @@ class SloxRepl {
 
             if (char === '\r' || char === '\n') {
                 this.terminal.write('\r\n');
-                this.execute();
+                this.handleEnter();
             } else if (code === 127 || code === 8) {
-                if (this.line.length > 0) {
-                    this.line = this.line.slice(0, -1);
-                    this.terminal.write('\b \b');
-                }
+                // Backspace
+                this.handleBackspace();
             } else if (char === '\x03') {
+                // Ctrl+C - cancel
                 this.line = '';
+                this.cursor = 0;
+                this.multilineBuffer = [];
                 this.terminal.write('^C\r\n' + PROMPT);
             } else if (char === '\x0c') {
+                // Ctrl+L - clear screen
                 this.terminal.clear();
-                this.terminal.write(PROMPT + this.line);
-            } else if (char === '\x1b') {
-                return;
+                this.terminal.write(this.getCurrentPrompt() + this.line);
+                this.moveCursorToPosition();
+            } else if (char === '\x01') {
+                // Ctrl+A - beginning of line
+                this.cursor = 0;
+                this.refreshLine();
+            } else if (char === '\x05') {
+                // Ctrl+E - end of line
+                this.cursor = this.line.length;
+                this.refreshLine();
+            } else if (char === '\x17') {
+                // Ctrl+W - delete word backward
+                this.deleteWordBackward();
             } else if (code >= 32) {
-                this.line += char;
-                this.terminal.write(char);
+                // Printable character
+                this.insertChar(char);
             }
         }
+    }
+
+    handleEscapeSequence(seq) {
+        switch (seq) {
+            case '\x1b[A': // Up arrow
+                this.historyUp();
+                break;
+            case '\x1b[B': // Down arrow
+                this.historyDown();
+                break;
+            case '\x1b[C': // Right arrow
+                this.moveCursorRight();
+                break;
+            case '\x1b[D': // Left arrow
+                this.moveCursorLeft();
+                break;
+            case '\x1b[H': // Home
+            case '\x1b[1~':
+                this.cursor = 0;
+                this.refreshLine();
+                break;
+            case '\x1b[F': // End
+            case '\x1b[4~':
+                this.cursor = this.line.length;
+                this.refreshLine();
+                break;
+            case '\x1b[3~': // Delete
+                this.handleDelete();
+                break;
+            case '\x1b[1;5C': // Ctrl+Right - word right
+                this.moveWordRight();
+                break;
+            case '\x1b[1;5D': // Ctrl+Left - word left
+                this.moveWordLeft();
+                break;
+            default:
+                // Unknown sequence - ignore
+                break;
+        }
+    }
+
+    insertChar(char) {
+        this.line = this.line.slice(0, this.cursor) + char + this.line.slice(this.cursor);
+        this.cursor++;
+        this.refreshLine();
+    }
+
+    handleBackspace() {
+        if (this.cursor > 0) {
+            this.line = this.line.slice(0, this.cursor - 1) + this.line.slice(this.cursor);
+            this.cursor--;
+            this.refreshLine();
+        }
+    }
+
+    handleDelete() {
+        if (this.cursor < this.line.length) {
+            this.line = this.line.slice(0, this.cursor) + this.line.slice(this.cursor + 1);
+            this.refreshLine();
+        }
+    }
+
+    moveCursorLeft() {
+        if (this.cursor > 0) {
+            this.cursor--;
+            this.terminal.write('\x1b[D');
+        }
+    }
+
+    moveCursorRight() {
+        if (this.cursor < this.line.length) {
+            this.cursor++;
+            this.terminal.write('\x1b[C');
+        }
+    }
+
+    moveWordLeft() {
+        if (this.cursor === 0) return;
+        // Skip spaces
+        while (this.cursor > 0 && this.line[this.cursor - 1] === ' ') {
+            this.cursor--;
+        }
+        // Skip word characters
+        while (this.cursor > 0 && this.line[this.cursor - 1] !== ' ') {
+            this.cursor--;
+        }
+        this.refreshLine();
+    }
+
+    moveWordRight() {
+        if (this.cursor >= this.line.length) return;
+        // Skip word characters
+        while (this.cursor < this.line.length && this.line[this.cursor] !== ' ') {
+            this.cursor++;
+        }
+        // Skip spaces
+        while (this.cursor < this.line.length && this.line[this.cursor] === ' ') {
+            this.cursor++;
+        }
+        this.refreshLine();
+    }
+
+    deleteWordBackward() {
+        if (this.cursor === 0) return;
+        const oldCursor = this.cursor;
+        // Skip spaces
+        while (this.cursor > 0 && this.line[this.cursor - 1] === ' ') {
+            this.cursor--;
+        }
+        // Skip word characters
+        while (this.cursor > 0 && this.line[this.cursor - 1] !== ' ') {
+            this.cursor--;
+        }
+        this.line = this.line.slice(0, this.cursor) + this.line.slice(oldCursor);
+        this.refreshLine();
+    }
+
+    refreshLine() {
+        const prompt = this.getCurrentPrompt();
+        this.terminal.write('\r\x1b[K' + prompt + this.line);
+        this.moveCursorToPosition();
+    }
+
+    moveCursorToPosition() {
+        // Move cursor to correct position
+        const prompt = this.getCurrentPrompt();
+        const promptLen = 4; // ">>> " or "... " without ANSI codes
+        const targetCol = promptLen + this.cursor;
+        this.terminal.write(`\r\x1b[${targetCol + 1}G`);
     }
 
     historyUp() {
@@ -283,14 +421,53 @@ class SloxRepl {
     }
 
     setLine(text) {
-        this.terminal.write('\r\x1b[K' + PROMPT + text);
         this.line = text;
+        this.cursor = text.length;
+        this.refreshLine();
     }
 
-    execute() {
-        const code = this.line.trim();
+    // Check if input is incomplete (needs continuation)
+    isIncomplete(code) {
+        let braces = 0;
+        let parens = 0;
+        let inString = false;
+
+        for (let i = 0; i < code.length; i++) {
+            const char = code[i];
+            const prev = i > 0 ? code[i - 1] : '';
+
+            if (char === '"' && prev !== '\\') {
+                inString = !inString;
+            } else if (!inString) {
+                if (char === '{') braces++;
+                else if (char === '}') braces--;
+                else if (char === '(') parens++;
+                else if (char === ')') parens--;
+            }
+        }
+
+        return inString || braces > 0 || parens > 0;
+    }
+
+    handleEnter() {
+        const currentLine = this.line;
         this.line = '';
+        this.cursor = 0;
         this.historyPos = -1;
+
+        // Add to multiline buffer
+        this.multilineBuffer.push(currentLine);
+        const fullCode = this.multilineBuffer.join('\n');
+
+        // Check if we need more input
+        if (this.isIncomplete(fullCode)) {
+            this.terminal.write(CONTINUATION_PROMPT);
+            return;
+        }
+
+        // Complete input - execute it
+        const code = fullCode.trim();
+        this.multilineBuffer = [];
 
         if (code && this.history[this.history.length - 1] !== code) {
             this.history.push(code);
@@ -304,10 +481,8 @@ class SloxRepl {
         if (code === 'clear') {
             this.terminal.clear();
         } else if (code === 'help') {
-            // Convert \n to \r\n for proper terminal rendering
             this.terminal.write(MANPAGE.replace(/\n/g, '\r\n'));
         } else if (code.startsWith('%')) {
-            // Magic commands
             this.handleMagicCommand(code);
         } else if (this.wasmLoaded && window.slox?.execute) {
             try {
