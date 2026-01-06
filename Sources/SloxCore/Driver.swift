@@ -9,16 +9,26 @@ public final class Driver {
     private static var hadRuntimeError = false
     private var skipErrors = false
     private var outputHandler: OutputHandler
-    private lazy var errorConsumer: ErrorConsumer = {
-        ErrorConsumer(
-            onError: { Driver.hadError = true },
-            onRuntimeError: { Driver.hadRuntimeError = true },
-            outputHandler: outputHandler
-        )
-    }()
-    private lazy var interpreter: Interpreter = {
-        Interpreter(errorConsumer: errorConsumer, outputHandler: outputHandler)
-    }()
+    private var _errorConsumer: ErrorConsumer?
+    private var _interpreter: Interpreter?
+
+    private var errorConsumer: ErrorConsumer {
+        if _errorConsumer == nil {
+            _errorConsumer = ErrorConsumer(
+                onError: { Driver.hadError = true },
+                onRuntimeError: { Driver.hadRuntimeError = true },
+                outputHandler: outputHandler
+            )
+        }
+        return _errorConsumer!
+    }
+
+    private var interpreter: Interpreter {
+        if _interpreter == nil {
+            _interpreter = Interpreter(errorConsumer: errorConsumer, outputHandler: outputHandler)
+        }
+        return _interpreter!
+    }
 
     public init(outputHandler: @escaping OutputHandler = { print($0) }) {
         self.outputHandler = outputHandler
@@ -69,5 +79,15 @@ public final class Driver {
 
     public func getEnvironment() -> String {
         return interpreter.environment.description
+    }
+
+    public func getGlobals() -> String {
+        return interpreter.globals.description
+    }
+
+    /// Reset interpreter state (clear all variables and functions)
+    public func reset() {
+        _interpreter = nil
+        _errorConsumer = nil
     }
 }

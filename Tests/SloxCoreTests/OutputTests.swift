@@ -161,4 +161,46 @@ final class OutputTests: XCTestCase {
         let result = driver.runRepl(source: "fun greet() { return \"hi\"; }")
         XCTAssertEqual(result, "nil")
     }
+
+    // MARK: - Magic command support tests
+
+    func testGetGlobalsContainsBuiltins() {
+        let driver = Driver { _ in }
+        let globals = driver.getGlobals()
+        XCTAssertTrue(globals.contains("clock"))
+        XCTAssertTrue(globals.contains("print"))
+    }
+
+    func testGetGlobalsContainsUserDefinedFunction() {
+        let driver = Driver { _ in }
+        _ = driver.runRepl(source: "fun myFunc() { return 42; }")
+        let globals = driver.getGlobals()
+        XCTAssertTrue(globals.contains("myFunc"))
+    }
+
+    func testGetEnvironmentContainsVariable() {
+        let driver = Driver { _ in }
+        _ = driver.runRepl(source: "var x = 10;")
+        let env = driver.getEnvironment()
+        XCTAssertTrue(env.contains("x"))
+    }
+
+    func testResetClearsState() {
+        let driver = Driver { _ in }
+        _ = driver.runRepl(source: "var x = 10;")
+        driver.reset()
+        // After reset, x should not exist - running x should cause error
+        let result = driver.runRepl(source: "x;")
+        XCTAssertNil(result) // Error should return nil
+    }
+
+    func testResetPreservesBuiltins() {
+        let driver = Driver { _ in }
+        _ = driver.runRepl(source: "var x = 10;")
+        driver.reset()
+        // Built-ins should still work
+        let globals = driver.getGlobals()
+        XCTAssertTrue(globals.contains("clock"))
+        XCTAssertTrue(globals.contains("print"))
+    }
 }

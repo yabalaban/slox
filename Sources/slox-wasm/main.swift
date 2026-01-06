@@ -14,6 +14,8 @@ var outputCallback: JSFunction?
 var initInterpreterClosure: JSClosure?
 var executeClosure: JSClosure?
 var getEnvironmentClosure: JSClosure?
+var getGlobalsClosure: JSClosure?
+var resetClosure: JSClosure?
 
 // Build timestamp for cache busting verification
 let buildTime = "__BUILD_TIME__"
@@ -104,10 +106,26 @@ func sloxInit() {
     }
     log("getEnvironmentClosure created")
 
+    // Get global definitions
+    getGlobalsClosure = JSClosure { _ -> JSValue in
+        let globals = driver?.getGlobals() ?? "{}"
+        return .string(globals)
+    }
+    log("getGlobalsClosure created")
+
+    // Reset interpreter state
+    resetClosure = JSClosure { _ -> JSValue in
+        driver?.reset()
+        return .undefined
+    }
+    log("resetClosure created")
+
     // Export functions to the slox namespace
     sloxNamespace.initInterpreter = .object(initInterpreterClosure!)
     sloxNamespace.execute = .object(executeClosure!)
     sloxNamespace.getEnvironment = .object(getEnvironmentClosure!)
+    sloxNamespace.getGlobals = .object(getGlobalsClosure!)
+    sloxNamespace.reset = .object(resetClosure!)
     log("functions exported to namespace")
 
     // Signal that WASM is ready

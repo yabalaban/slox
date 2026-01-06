@@ -53,6 +53,11 @@ const MANPAGE = `\x1b[1mSLOX(1)                       User Commands             
     \x1b[32mCtrl+L\x1b[0m           Clear screen
     \x1b[32mUp/Down\x1b[0m          Command history
 
+\x1b[1mMAGIC COMMANDS\x1b[0m
+    \x1b[36m%env\x1b[0m             Show current environment (local scope)
+    \x1b[36m%globals\x1b[0m         Show global definitions
+    \x1b[36m%reset\x1b[0m           Reset interpreter state
+
 \x1b[1mEXAMPLES\x1b[0m
     \x1b[90m>>> print("Hello!");\x1b[0m
     Hello!
@@ -301,6 +306,9 @@ class SloxRepl {
         } else if (code === 'help') {
             // Convert \n to \r\n for proper terminal rendering
             this.terminal.write(MANPAGE.replace(/\n/g, '\r\n'));
+        } else if (code.startsWith('%')) {
+            // Magic commands
+            this.handleMagicCommand(code);
         } else if (this.wasmLoaded && window.slox?.execute) {
             try {
                 window.slox.execute(code);
@@ -312,6 +320,48 @@ class SloxRepl {
         }
 
         this.terminal.write(PROMPT);
+    }
+
+    handleMagicCommand(cmd) {
+        if (!this.wasmLoaded) {
+            this.terminal.writeln('\x1b[38;5;242mWASM not available\x1b[0m');
+            return;
+        }
+
+        const command = cmd.toLowerCase().trim();
+
+        switch (command) {
+            case '%env':
+                try {
+                    const env = window.slox.getEnvironment();
+                    this.terminal.writeln(`\x1b[36mEnvironment:\x1b[0m ${env}`);
+                } catch (e) {
+                    this.terminal.writeln(`\x1b[31mError: ${e.message}\x1b[0m`);
+                }
+                break;
+
+            case '%globals':
+                try {
+                    const globals = window.slox.getGlobals();
+                    this.terminal.writeln(`\x1b[36mGlobals:\x1b[0m ${globals}`);
+                } catch (e) {
+                    this.terminal.writeln(`\x1b[31mError: ${e.message}\x1b[0m`);
+                }
+                break;
+
+            case '%reset':
+                try {
+                    window.slox.reset();
+                    this.terminal.writeln('\x1b[36mInterpreter state reset.\x1b[0m');
+                } catch (e) {
+                    this.terminal.writeln(`\x1b[31mError: ${e.message}\x1b[0m`);
+                }
+                break;
+
+            default:
+                this.terminal.writeln(`\x1b[31mUnknown magic command: ${cmd}\x1b[0m`);
+                this.terminal.writeln('\x1b[38;5;242mAvailable: %env, %globals, %reset\x1b[0m');
+        }
     }
 }
 
