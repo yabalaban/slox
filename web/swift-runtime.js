@@ -80,6 +80,19 @@ export class SwiftRuntime {
                     return this.encodeValue(error, payload1, payload2);
                 }
             },
+            swjs_call_function_no_catch: (ref, argv, argc, payload1, payload2) => {
+                const func = this.getObject(ref);
+                const args = this.decodeArgs(argv, argc);
+                const result = func(...args);
+                return this.encodeValue(result, payload1, payload2);
+            },
+            swjs_call_function_with_this_no_catch: (objRef, funcRef, argv, argc, payload1, payload2) => {
+                const obj = this.getObject(objRef);
+                const func = this.getObject(funcRef);
+                const args = this.decodeArgs(argv, argc);
+                const result = func.apply(obj, args);
+                return this.encodeValue(result, payload1, payload2);
+            },
             swjs_call_new: (ref, argv, argc) => {
                 const constructor = this.getObject(ref);
                 const args = this.decodeArgs(argv, argc);
