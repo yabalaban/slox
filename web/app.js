@@ -140,17 +140,20 @@ class SloxRepl {
         const startTime = Date.now();
 
         try {
+            console.log('[app] Starting WASM load');
             window.slox = {};
-            window.sloxReady = () => {};
+            window.sloxReady = () => { console.log('[app] sloxReady callback'); };
 
             const response = await fetch('slox-wasm.wasm');
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
             const wasmBytes = await response.arrayBuffer();
             const wasmSize = (wasmBytes.byteLength / 1024).toFixed(1);
+            console.log(`[app] WASM fetched: ${wasmSize}KB`);
 
             const { WASI, File, OpenFile, ConsoleStdout } = await import('./wasi-loader.js');
             const { SwiftRuntime } = await import('./javascriptkit-runtime.mjs');
+            console.log('[app] WASI and SwiftRuntime loaded');
 
             const terminal = this.terminal;
             const wasi = new WASI([], [], [
@@ -160,21 +163,35 @@ class SloxRepl {
             ]);
 
             const swift = new SwiftRuntime();
+            console.log('[app] Instantiating WASM...');
             const { instance } = await WebAssembly.instantiate(wasmBytes, {
                 wasi_snapshot_preview1: wasi.wasiImport,
                 javascript_kit: swift.wasmImports
             });
+            console.log('[app] WASM instantiated');
 
             swift.setInstance(instance);
+            console.log('[app] SwiftRuntime instance set');
             wasi.initialize(instance);
+            console.log('[app] WASI initialized');
 
+            console.log('[app] Calling _initialize...');
             if (instance.exports._initialize) instance.exports._initialize();
+            console.log('[app] Calling slox_init...');
             if (instance.exports.slox_init) instance.exports.slox_init();
+            console.log('[app] slox_init returned');
 
             await new Promise(r => setTimeout(r, 50));
+            console.log('[app] window.slox:', window.slox);
+            console.log('[app] initInterpreter exists:', !!window.slox?.initInterpreter);
 
             if (window.slox?.initInterpreter) {
-                const initOk = window.slox.initInterpreter(out => this.terminal.writeln(out));
+                console.log('[app] Calling initInterpreter...');
+                const initOk = window.slox.initInterpreter(out => {
+                    console.log('[app] Output callback:', out);
+                    this.terminal.writeln(out);
+                });
+                console.log('[app] initInterpreter returned:', initOk);
                 if (!initOk) throw new Error('initInterpreter returned false');
 
                 this.wasmLoaded = true;
@@ -187,6 +204,7 @@ class SloxRepl {
                 throw new Error('API initialization failed');
             }
         } catch (e) {
+            console.error('[app] WASM error:', e);
             this.terminal.writeln(`\x1b[31m✗\x1b[0m \x1b[38;5;242mWASM error: ${e.message}\x1b[0m`);
             this.ready = true;
         }
