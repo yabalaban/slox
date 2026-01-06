@@ -2,70 +2,68 @@
 
 const PROMPT = '\x1b[32m>>>\x1b[0m ';
 
-const MANPAGE = `\x1b[1mSLOX(1)                      User Commands                      SLOX(1)\x1b[0m
+const MANPAGE = `\x1b[1mSLOX(1)                       User Commands                        SLOX(1)\x1b[0m
 
 \x1b[1mNAME\x1b[0m
-       slox - Lox language interpreter compiled to WebAssembly
+    slox - Lox language interpreter compiled to WebAssembly
 
 \x1b[1mDESCRIPTION\x1b[0m
-       Lox is a dynamically-typed scripting language from the book
-       "Crafting Interpreters" by Robert Nystrom. This implementation
-       is written in Swift and compiled to WebAssembly.
+    Lox is a dynamically-typed scripting language from the book
+    "Crafting Interpreters" by Robert Nystrom. This implementation is
+    written in Swift and compiled to WebAssembly.
 
 \x1b[1mDATA TYPES\x1b[0m
-       \x1b[33mnil\x1b[0m          The absence of a value
-       \x1b[33mtrue\x1b[0m/\x1b[33mfalse\x1b[0m   Boolean values
-       \x1b[33m123\x1b[0m, \x1b[33m3.14\x1b[0m    Numbers (double-precision floats)
-       \x1b[33m"hello"\x1b[0m      Strings (double quotes only)
+    \x1b[33mnil\x1b[0m             The absence of a value
+    \x1b[33mtrue\x1b[0m / \x1b[33mfalse\x1b[0m    Boolean values
+    \x1b[33m123\x1b[0m, \x1b[33m3.14\x1b[0m       Numbers (double-precision floats)
+    \x1b[33m"hello"\x1b[0m         Strings (double quotes only)
 
 \x1b[1mVARIABLES\x1b[0m
-       var name = "value";
-       var count = 42;
+    var name = "value";
+    var count = 42;
 
 \x1b[1mCONTROL FLOW\x1b[0m
-       if (condition) { ... } else { ... }
-       while (condition) { ... }
-       for (var i = 0; i < 10; i = i + 1) { ... }
+    if (cond) { ... } else { ... }
+    while (cond) { ... }
+    for (var i = 0; i < 10; i = i + 1) { ... }
 
 \x1b[1mFUNCTIONS\x1b[0m
-       fun greet(name) {
-           print("Hello, " + name + "!");
-       }
-       greet("World");
+    fun greet(name) {
+        print("Hello, " + name + "!");
+    }
+    greet("World");
 
 \x1b[1mCLASSES\x1b[0m
-       class Animal {
-           init(name) { this.name = name; }
-           speak() { print(this.name + " makes a sound"); }
-       }
-       class Dog < Animal {
-           speak() { print(this.name + " barks!"); }
-       }
-       var dog = Dog("Rex");
-       dog.speak();
+    class Animal {
+        init(name) { this.name = name; }
+        speak() { print(this.name + " speaks"); }
+    }
+    class Dog < Animal {
+        speak() { print(this.name + " barks!"); }
+    }
 
-\x1b[1mBUILT-IN FUNCTIONS\x1b[0m
-       \x1b[32mprint\x1b[0m(value)   Output a value to the terminal
-       \x1b[32mclock\x1b[0m()        Returns seconds since epoch
+\x1b[1mBUILT-INS\x1b[0m
+    \x1b[32mprint\x1b[0m(value)     Output a value
+    \x1b[32mclock\x1b[0m()          Seconds since epoch
 
 \x1b[1mREPL COMMANDS\x1b[0m
-       \x1b[32mhelp\x1b[0m           Show this manual
-       \x1b[32mclear\x1b[0m          Clear the screen
-       \x1b[32mCtrl+C\x1b[0m         Cancel current input
-       \x1b[32mCtrl+L\x1b[0m         Clear screen
-       \x1b[32mUp/Down\x1b[0m        Navigate command history
+    \x1b[32mhelp\x1b[0m             Show this manual
+    \x1b[32mclear\x1b[0m            Clear the screen
+    \x1b[32mCtrl+C\x1b[0m           Cancel input
+    \x1b[32mCtrl+L\x1b[0m           Clear screen
+    \x1b[32mUp/Down\x1b[0m          Command history
 
 \x1b[1mEXAMPLES\x1b[0m
-       \x1b[38;5;242m>>> print("Hello, World!");\x1b[0m
-       Hello, World!
+    \x1b[90m>>> print("Hello!");\x1b[0m
+    Hello!
 
-       \x1b[38;5;242m>>> fun fib(n) { if (n < 2) return n; return fib(n-1) + fib(n-2); }\x1b[0m
-       \x1b[38;5;242m>>> print(fib(20));\x1b[0m
-       6765
+    \x1b[90m>>> fun fib(n) { if (n<2) return n; return fib(n-1)+fib(n-2); }\x1b[0m
+    \x1b[90m>>> print(fib(20));\x1b[0m
+    6765
 
 \x1b[1mSEE ALSO\x1b[0m
-       https://craftinginterpreters.com/
-       https://github.com/yabalaban/slox
+    https://craftinginterpreters.com
+    https://github.com/yabalaban/slox
 
 `;
 
