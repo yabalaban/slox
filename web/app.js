@@ -194,9 +194,16 @@ class SloxRepl {
         swift.setInstance(instance);
         wasi.initialize(instance);
 
-        // Initialize the WASM module (reactor mode uses _initialize instead of _start)
+        // Initialize the WASM module (reactor mode)
         if (instance.exports._initialize) {
             instance.exports._initialize();
+        }
+
+        // Call the main entry point to set up the slox API
+        if (instance.exports.main) {
+            instance.exports.main();
+        } else if (instance.exports._start) {
+            instance.exports._start();
         }
     }
 
