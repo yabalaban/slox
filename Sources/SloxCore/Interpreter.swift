@@ -47,6 +47,34 @@ final class Interpreter {
         }
     }
 
+    /// REPL-style interpret that returns the result of the last expression
+    func interpretRepl(_ stmts: [Stmt]) -> String? {
+        do {
+            var lastResult: LoxObject = .null
+            for stmt in stmts {
+                if let exprStmt = stmt as? ExpressionStmt {
+                    lastResult = try evaluate(exprStmt.expression)
+                } else if let varStmt = stmt as? VarStmt {
+                    try execute(stmt)
+                    if varStmt.initializer != nil {
+                        lastResult = try environment.get(name: varStmt.name)
+                    } else {
+                        lastResult = .null
+                    }
+                } else {
+                    try execute(stmt)
+                    lastResult = .null
+                }
+            }
+            return lastResult.description
+        } catch let e as RuntimeError {
+            errorConsumer.runtimeError(token: e.token, message: e.message)
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
     func resolve(_ expr: Expr, _ depth: Int) {
         locals[expr.description] = depth
     }

@@ -79,13 +79,19 @@ func sloxInit() {
     }
     log("initInterpreterClosure created")
 
-    // Execute a line of Lox code
+    // Execute a line of Lox code (REPL-style, always shows result)
     executeClosure = JSClosure { args -> JSValue in
         log("execute called")
         guard args.count >= 1 else { return .undefined }
         let source = args[0].string ?? ""
         log("execute: running '\(source)'")
-        driver?.run(source: source)
+        if let result = driver?.runRepl(source: source) {
+            log("execute: result = \(result)")
+            // Output the result via callback
+            if let cb = outputCallback {
+                _ = cb(JSValue.string(result))
+            }
+        }
         log("execute: done")
         return .undefined
     }

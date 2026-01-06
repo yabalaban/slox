@@ -43,6 +43,30 @@ public final class Driver {
         interpreter.interpret(statements)
     }
 
+    /// REPL-style run that returns the result of the last expression
+    public func runRepl(source: String) -> String? {
+        Self.hadError = false
+        Self.hadRuntimeError = false
+        self.skipErrors = true
+
+        let scanner = Scanner(source: source,
+                              errorConsumer: errorConsumer)
+        let tokens = scanner.scan()
+        let parser = Parser(tokens: tokens,
+                            errorConsumer: errorConsumer)
+        let statements = parser.parse()
+
+        guard !Self.hadError else { return nil }
+
+        let resolver = Resolver(interpreter: interpreter,
+                                errorConsumer: errorConsumer)
+        resolver.resolve(statements)
+
+        guard !Self.hadError else { return nil }
+
+        return interpreter.interpretRepl(statements)
+    }
+
     public func getEnvironment() -> String {
         return interpreter.environment.description
     }

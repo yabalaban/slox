@@ -116,4 +116,49 @@ final class OutputTests: XCTestCase {
 
         XCTAssertEqual(output, ["55"])
     }
+
+    // MARK: - REPL-style tests (runRepl returns evaluation result)
+
+    func testReplExpression() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "2 + 3;")
+        XCTAssertEqual(result, "5.0")
+    }
+
+    func testReplString() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "\"hello\";")
+        XCTAssertEqual(result, "hello")
+    }
+
+    func testReplNil() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "nil;")
+        XCTAssertEqual(result, "nil")
+    }
+
+    func testReplBoolean() {
+        let driver = Driver { _ in }
+        XCTAssertEqual(driver.runRepl(source: "true;"), "true")
+        XCTAssertEqual(driver.runRepl(source: "false;"), "false")
+    }
+
+    func testReplVariable() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "var x = 42;")
+        XCTAssertEqual(result, "42.0")
+    }
+
+    func testReplFunctionCall() {
+        let driver = Driver { _ in }
+        driver.runRepl(source: "fun add(a, b) { return a + b; }")
+        let result = driver.runRepl(source: "add(10, 20);")
+        XCTAssertEqual(result, "30.0")
+    }
+
+    func testReplFunctionDefinition() {
+        let driver = Driver { _ in }
+        let result = driver.runRepl(source: "fun greet() { return \"hi\"; }")
+        XCTAssertEqual(result, "nil")
+    }
 }
