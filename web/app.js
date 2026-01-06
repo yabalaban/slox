@@ -174,12 +174,15 @@ class SloxRepl {
             await new Promise(r => setTimeout(r, 50));
 
             if (window.slox?.initInterpreter) {
-                window.slox.initInterpreter(out => this.terminal.writeln(out));
+                const initOk = window.slox.initInterpreter(out => this.terminal.writeln(out));
+                if (!initOk) throw new Error('initInterpreter returned false');
+
                 this.wasmLoaded = true;
                 this.ready = true;
 
                 const elapsed = Date.now() - startTime;
-                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mWASM loaded (${wasmSize}KB, ${elapsed}ms)\x1b[0m`);
+                const buildTime = window.slox.buildTime || 'unknown';
+                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mLoaded ${wasmSize}KB in ${elapsed}ms (built: ${buildTime})\x1b[0m`);
             } else {
                 throw new Error('API initialization failed');
             }
@@ -279,7 +282,9 @@ class SloxRepl {
         if (code === 'clear') {
             this.terminal.clear();
         } else if (code === 'help') {
-            this.terminal.write(MANPAGE);
+            for (const line of MANPAGE.split('\n')) {
+                this.terminal.writeln(line);
+            }
         } else if (this.wasmLoaded && window.slox?.execute) {
             try {
                 window.slox.execute(code);

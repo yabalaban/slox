@@ -34,6 +34,10 @@ jobs:
       - name: Build WASM
         run: |
           set -ex
+          # Inject build timestamp
+          BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
+          sed -i "s/__BUILD_TIME__/$BUILD_TIME/" Sources/slox-wasm/main.swift
+          cat Sources/slox-wasm/main.swift | grep buildTime
           swift build --triple wasm32-unknown-wasi -c release --product slox-wasm \
             -Xswiftc -Xclang-linker -Xswiftc -mexec-model=reactor \
             -Xlinker --export=slox_init

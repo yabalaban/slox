@@ -6,8 +6,12 @@
 import JavaScriptKit
 import SloxCore
 
-// Global state
+// Global state - must keep references alive
 var driver: Driver?
+var outputCallback: JSObject?
+
+// Build timestamp for cache busting verification
+let buildTime = "__BUILD_TIME__"
 
 // Export initialization function for JavaScript to call
 @_cdecl("slox_init")
@@ -28,17 +32,25 @@ func sloxInit() {
         return obj
     }()
 
+    // Export build time
+    sloxNamespace.buildTime = JSValue.string(buildTime)
+
     // Initialize the interpreter with an output callback
     let initInterpreterClosure = JSClosure { args -> JSValue in
-        guard args.count >= 1, let callback = args[0].object else {
-            return .undefined
+        guard args.count >= 1, let cb = args[0].object else {
+            return .boolean(false)
         }
+
+        // Store callback globally to prevent GC
+        outputCallback = cb
 
         driver = Driver { output in
-            _ = callback.callAsFunction!(JSValue.string(output))
+            if let cb = outputCallback {
+                _ = cb.callAsFunction!(JSValue.string(output))
+            }
         }
 
-        return .undefined
+        return .boolean(true)
     }
 
     // Execute a line of Lox code
