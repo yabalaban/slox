@@ -1,9 +1,22 @@
-// slox Web REPL
+/**
+ * slox Web REPL
+ *
+ * A terminal-based REPL for the Slox (Swift Lox) interpreter running in WebAssembly.
+ * Uses xterm.js for terminal emulation and JavaScriptKit for Swift/JS interop.
+ */
 
+// =============================================================================
+// Constants
+// =============================================================================
+
+// Build timestamp injected by CI (remains placeholder in dev)
 const BUILD_TIME = '__BUILD_TIME__';
+
+// Terminal prompts (ANSI colored)
 const PROMPT = '\x1b[32m>>>\x1b[0m ';
 const CONTINUATION_PROMPT = '\x1b[32m...\x1b[0m ';
 
+// Man-page style help text with ANSI formatting
 const MANPAGE = `\x1b[1mSLOX(1)                       User Commands                        SLOX(1)\x1b[0m
 
 \x1b[1mNAME\x1b[0m
@@ -81,20 +94,33 @@ const MANPAGE = `\x1b[1mSLOX(1)                       User Commands             
 
 `;
 
+// =============================================================================
+// SloxRepl Class
+// =============================================================================
+
+/**
+ * Main REPL controller class.
+ * Manages terminal I/O, command history, multiline input, and WASM communication.
+ */
 class SloxRepl {
     constructor() {
-        this.terminal = null;
-        this.line = '';
-        this.cursor = 0; // Cursor position within current line
-        this.history = [];
-        this.historyPos = -1;
-        this.ready = false;
-        this.wasmLoaded = false;
-        this.multilineBuffer = []; // For multiline input
+        this.terminal = null;       // xterm.js Terminal instance
+        this.line = '';             // Current input line
+        this.cursor = 0;            // Cursor position within line
+        this.history = [];          // Command history
+        this.historyPos = -1;       // Current position in history (-1 = new input)
+        this.ready = false;         // Terminal ready for input
+        this.wasmLoaded = false;    // WASM interpreter loaded successfully
+        this.multilineBuffer = [];  // Accumulated lines for multiline input
         this.init();
     }
 
+    // =========================================================================
+    // Initialization
+    // =========================================================================
+
     async init() {
+        // Configure xterm.js terminal with dark theme
         this.terminal = new Terminal({
             cols: 80,
             rows: 24,
@@ -129,21 +155,24 @@ class SloxRepl {
             scrollback: 5000
         });
 
+        // Enable clickable links
         this.terminal.loadAddon(new WebLinksAddon.WebLinksAddon());
         this.terminal.open(document.getElementById('terminal'));
 
-        // Resize handler to adjust rows only
+        // Resize terminal to fit container (fixed 80 cols, dynamic rows)
         const resize = () => {
             const container = document.getElementById('terminal');
-            const charHeight = 14 * 1.4; // fontSize * lineHeight
+            const charHeight = 14 * 1.4;
             const rows = Math.floor((container.clientHeight - 32) / charHeight);
             this.terminal.resize(80, Math.max(rows, 10));
         };
         window.addEventListener('resize', resize);
         resize();
 
+        // Handle all terminal input
         this.terminal.onData(data => this.handleInput(data));
 
+        // Display welcome message
         this.terminal.writeln('\x1b[1;32mslox\x1b[0m \x1b[38;5;242m- Lox interpreter in Swift/WASM\x1b[0m');
         this.terminal.writeln('\x1b[38;5;242mType "help" for language reference.\x1b[0m');
         this.terminal.writeln('');
@@ -152,43 +181,55 @@ class SloxRepl {
         await this.loadWasm();
     }
 
+    /**
+     * Load and initialize the WASM interpreter.
+     * Sets up WASI environment and JavaScriptKit runtime.
+     */
     async loadWasm() {
         const startTime = Date.now();
 
         try {
+            // Prepare global namespace for WASM exports
             window.slox = {};
             window.sloxReady = () => {};
 
+            // Fetch WASM binary
             const response = await fetch('slox-wasm.wasm');
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
             const wasmBytes = await response.arrayBuffer();
             const wasmSize = (wasmBytes.byteLength / 1024).toFixed(1);
 
+            // Load WASI and JavaScriptKit runtime
             const { WASI, File, OpenFile, ConsoleStdout } = await import('./wasi-loader.js');
             const { SwiftRuntime } = await import('./javascriptkit-runtime.mjs');
 
+            // Configure WASI with stdio
             const terminal = this.terminal;
             const wasi = new WASI([], [], [
-                new OpenFile(new File([])),
-                ConsoleStdout.lineBuffered(msg => terminal.writeln(msg)),
-                ConsoleStdout.lineBuffered(msg => console.error(msg)),
+                new OpenFile(new File([])),                              // stdin
+                ConsoleStdout.lineBuffered(msg => terminal.writeln(msg)), // stdout
+                ConsoleStdout.lineBuffered(msg => console.error(msg)),   // stderr
             ]);
 
+            // Instantiate WASM module
             const swift = new SwiftRuntime();
             const { instance } = await WebAssembly.instantiate(wasmBytes, {
                 wasi_snapshot_preview1: wasi.wasiImport,
                 javascript_kit: swift.wasmImports
             });
 
+            // Initialize runtimes
             swift.setInstance(instance);
             wasi.initialize(instance);
 
+            // Call WASM initialization functions
             if (instance.exports._initialize) instance.exports._initialize();
             if (instance.exports.slox_init) instance.exports.slox_init();
 
+            // Brief delay for async initialization
             await new Promise(r => setTimeout(r, 50));
 
+            // Initialize interpreter with output callback
             if (window.slox?.initInterpreter) {
                 const initOk = window.slox.initInterpreter(out => {
                     this.terminal.writeln(out);
@@ -198,6 +239,7 @@ class SloxRepl {
                 this.wasmLoaded = true;
                 this.ready = true;
 
+                // Display success message with timing info
                 const elapsed = Date.now() - startTime;
                 const buildInfo = BUILD_TIME !== '__BUILD_TIME__' ? `, built: ${BUILD_TIME}` : '';
                 this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mReady (${wasmSize}KB, ${elapsed}ms${buildInfo})\x1b[0m`);
@@ -207,7 +249,7 @@ class SloxRepl {
         } catch (e) {
             console.error('WASM load error:', e);
             this.terminal.writeln(`\x1b[31m✗\x1b[0m \x1b[38;5;242mWASM error: ${e.message}\x1b[0m`);
-            this.ready = true;
+            this.ready = true; // Allow basic terminal use even if WASM fails
         }
 
         this.terminal.writeln('');
@@ -216,23 +258,32 @@ class SloxRepl {
         this.terminal.focus();
     }
 
+    // =========================================================================
+    // Input Handling
+    // =========================================================================
+
+    /** Returns the appropriate prompt based on multiline state */
     getCurrentPrompt() {
         return this.multilineBuffer.length > 0 ? CONTINUATION_PROMPT : PROMPT;
     }
 
+    /**
+     * Main input handler - processes all terminal input data.
+     * Handles escape sequences, control characters, and printable input.
+     */
     handleInput(data) {
         if (!this.ready) return;
 
-        // Handle escape sequences
+        // Handle escape sequences as a unit
         if (data.startsWith('\x1b[')) {
             this.handleEscapeSequence(data);
             return;
         }
         if (data.startsWith('\x1b')) {
-            // Other escape sequences - ignore
-            return;
+            return; // Ignore other escape sequences
         }
 
+        // Process each character
         for (const char of data) {
             const code = char.charCodeAt(0);
 
@@ -240,29 +291,28 @@ class SloxRepl {
                 this.terminal.write('\r\n');
                 this.handleEnter();
             } else if (code === 127 || code === 8) {
-                // Backspace
                 this.handleBackspace();
             } else if (char === '\x03') {
-                // Ctrl+C - cancel
+                // Ctrl+C: cancel current input
                 this.line = '';
                 this.cursor = 0;
                 this.multilineBuffer = [];
                 this.terminal.write('^C\r\n' + PROMPT);
             } else if (char === '\x0c') {
-                // Ctrl+L - clear screen
+                // Ctrl+L: clear screen
                 this.terminal.clear();
                 this.terminal.write(this.getCurrentPrompt() + this.line);
                 this.moveCursorToPosition();
             } else if (char === '\x01') {
-                // Ctrl+A - beginning of line
+                // Ctrl+A: beginning of line
                 this.cursor = 0;
                 this.refreshLine();
             } else if (char === '\x05') {
-                // Ctrl+E - end of line
+                // Ctrl+E: end of line
                 this.cursor = this.line.length;
                 this.refreshLine();
             } else if (char === '\x17') {
-                // Ctrl+W - delete word backward
+                // Ctrl+W: delete word backward
                 this.deleteWordBackward();
             } else if (code >= 32) {
                 // Printable character
@@ -271,51 +321,41 @@ class SloxRepl {
         }
     }
 
+    /** Handle escape sequences (arrow keys, home/end, etc.) */
     handleEscapeSequence(seq) {
         switch (seq) {
-            case '\x1b[A': // Up arrow
-                this.historyUp();
-                break;
-            case '\x1b[B': // Down arrow
-                this.historyDown();
-                break;
-            case '\x1b[C': // Right arrow
-                this.moveCursorRight();
-                break;
-            case '\x1b[D': // Left arrow
-                this.moveCursorLeft();
-                break;
-            case '\x1b[H': // Home
+            case '\x1b[A': this.historyUp(); break;           // Up arrow
+            case '\x1b[B': this.historyDown(); break;         // Down arrow
+            case '\x1b[C': this.moveCursorRight(); break;     // Right arrow
+            case '\x1b[D': this.moveCursorLeft(); break;      // Left arrow
+            case '\x1b[H':                                     // Home
             case '\x1b[1~':
                 this.cursor = 0;
                 this.refreshLine();
                 break;
-            case '\x1b[F': // End
+            case '\x1b[F':                                     // End
             case '\x1b[4~':
                 this.cursor = this.line.length;
                 this.refreshLine();
                 break;
-            case '\x1b[3~': // Delete
-                this.handleDelete();
-                break;
-            case '\x1b[1;5C': // Ctrl+Right - word right
-                this.moveWordRight();
-                break;
-            case '\x1b[1;5D': // Ctrl+Left - word left
-                this.moveWordLeft();
-                break;
-            default:
-                // Unknown sequence - ignore
-                break;
+            case '\x1b[3~': this.handleDelete(); break;       // Delete
+            case '\x1b[1;5C': this.moveWordRight(); break;    // Ctrl+Right
+            case '\x1b[1;5D': this.moveWordLeft(); break;     // Ctrl+Left
         }
     }
 
+    // =========================================================================
+    // Line Editing
+    // =========================================================================
+
+    /** Insert character at cursor position */
     insertChar(char) {
         this.line = this.line.slice(0, this.cursor) + char + this.line.slice(this.cursor);
         this.cursor++;
         this.refreshLine();
     }
 
+    /** Delete character before cursor */
     handleBackspace() {
         if (this.cursor > 0) {
             this.line = this.line.slice(0, this.cursor - 1) + this.line.slice(this.cursor);
@@ -324,6 +364,7 @@ class SloxRepl {
         }
     }
 
+    /** Delete character at cursor */
     handleDelete() {
         if (this.cursor < this.line.length) {
             this.line = this.line.slice(0, this.cursor) + this.line.slice(this.cursor + 1);
@@ -331,6 +372,7 @@ class SloxRepl {
         }
     }
 
+    /** Move cursor one character left */
     moveCursorLeft() {
         if (this.cursor > 0) {
             this.cursor--;
@@ -338,6 +380,7 @@ class SloxRepl {
         }
     }
 
+    /** Move cursor one character right */
     moveCursorRight() {
         if (this.cursor < this.line.length) {
             this.cursor++;
@@ -345,61 +388,51 @@ class SloxRepl {
         }
     }
 
+    /** Move cursor one word left */
     moveWordLeft() {
         if (this.cursor === 0) return;
-        // Skip spaces
-        while (this.cursor > 0 && this.line[this.cursor - 1] === ' ') {
-            this.cursor--;
-        }
-        // Skip word characters
-        while (this.cursor > 0 && this.line[this.cursor - 1] !== ' ') {
-            this.cursor--;
-        }
+        while (this.cursor > 0 && this.line[this.cursor - 1] === ' ') this.cursor--;
+        while (this.cursor > 0 && this.line[this.cursor - 1] !== ' ') this.cursor--;
         this.refreshLine();
     }
 
+    /** Move cursor one word right */
     moveWordRight() {
         if (this.cursor >= this.line.length) return;
-        // Skip word characters
-        while (this.cursor < this.line.length && this.line[this.cursor] !== ' ') {
-            this.cursor++;
-        }
-        // Skip spaces
-        while (this.cursor < this.line.length && this.line[this.cursor] === ' ') {
-            this.cursor++;
-        }
+        while (this.cursor < this.line.length && this.line[this.cursor] !== ' ') this.cursor++;
+        while (this.cursor < this.line.length && this.line[this.cursor] === ' ') this.cursor++;
         this.refreshLine();
     }
 
+    /** Delete word before cursor (Ctrl+W) */
     deleteWordBackward() {
         if (this.cursor === 0) return;
         const oldCursor = this.cursor;
-        // Skip spaces
-        while (this.cursor > 0 && this.line[this.cursor - 1] === ' ') {
-            this.cursor--;
-        }
-        // Skip word characters
-        while (this.cursor > 0 && this.line[this.cursor - 1] !== ' ') {
-            this.cursor--;
-        }
+        while (this.cursor > 0 && this.line[this.cursor - 1] === ' ') this.cursor--;
+        while (this.cursor > 0 && this.line[this.cursor - 1] !== ' ') this.cursor--;
         this.line = this.line.slice(0, this.cursor) + this.line.slice(oldCursor);
         this.refreshLine();
     }
 
+    /** Redraw current line with cursor at correct position */
     refreshLine() {
         const prompt = this.getCurrentPrompt();
         this.terminal.write('\r\x1b[K' + prompt + this.line);
         this.moveCursorToPosition();
     }
 
+    /** Move terminal cursor to match this.cursor position */
     moveCursorToPosition() {
-        // Move cursor to correct position
-        const prompt = this.getCurrentPrompt();
-        const promptLen = 4; // ">>> " or "... " without ANSI codes
+        const promptLen = 4; // ">>> " or "... " (without ANSI codes)
         const targetCol = promptLen + this.cursor;
         this.terminal.write(`\r\x1b[${targetCol + 1}G`);
     }
 
+    // =========================================================================
+    // History Navigation
+    // =========================================================================
+
+    /** Navigate to previous command in history */
     historyUp() {
         if (this.history.length === 0) return;
         if (this.historyPos === -1) {
@@ -410,6 +443,7 @@ class SloxRepl {
         this.setLine(this.history[this.historyPos]);
     }
 
+    /** Navigate to next command in history */
     historyDown() {
         if (this.historyPos === -1) return;
         if (this.historyPos < this.history.length - 1) {
@@ -421,17 +455,23 @@ class SloxRepl {
         }
     }
 
+    /** Set current line content and move cursor to end */
     setLine(text) {
         this.line = text;
         this.cursor = text.length;
         this.refreshLine();
     }
 
-    // Check if input is incomplete (needs continuation)
+    // =========================================================================
+    // Multiline Input Detection
+    // =========================================================================
+
+    /**
+     * Check if code is incomplete (needs continuation).
+     * Detects unclosed braces, parentheses, or strings.
+     */
     isIncomplete(code) {
-        let braces = 0;
-        let parens = 0;
-        let inString = false;
+        let braces = 0, parens = 0, inString = false;
 
         for (let i = 0; i < code.length; i++) {
             const char = code[i];
@@ -450,26 +490,32 @@ class SloxRepl {
         return inString || braces > 0 || parens > 0;
     }
 
+    // =========================================================================
+    // Command Execution
+    // =========================================================================
+
+    /** Handle Enter key - check for continuation or execute */
     handleEnter() {
         const currentLine = this.line;
         this.line = '';
         this.cursor = 0;
         this.historyPos = -1;
 
-        // Add to multiline buffer
+        // Accumulate multiline input
         this.multilineBuffer.push(currentLine);
         const fullCode = this.multilineBuffer.join('\n');
 
-        // Check if we need more input
+        // Check if input is incomplete
         if (this.isIncomplete(fullCode)) {
             this.terminal.write(CONTINUATION_PROMPT);
             return;
         }
 
-        // Complete input - execute it
+        // Execute complete input
         const code = fullCode.trim();
         this.multilineBuffer = [];
 
+        // Add to history (avoid duplicates)
         if (code && this.history[this.history.length - 1] !== code) {
             this.history.push(code);
         }
@@ -479,6 +525,7 @@ class SloxRepl {
             return;
         }
 
+        // Handle built-in commands
         if (code === 'clear') {
             this.terminal.clear();
         } else if (code === 'help') {
@@ -486,6 +533,7 @@ class SloxRepl {
         } else if (code.startsWith('%')) {
             this.handleMagicCommand(code);
         } else if (this.wasmLoaded && window.slox?.execute) {
+            // Execute Lox code via WASM
             try {
                 window.slox.execute(code);
             } catch (e) {
@@ -498,6 +546,7 @@ class SloxRepl {
         this.terminal.write(PROMPT);
     }
 
+    /** Handle magic commands (%env, %globals, %reset) */
     handleMagicCommand(cmd) {
         if (!this.wasmLoaded) {
             this.terminal.writeln('\x1b[38;5;242mWASM not available\x1b[0m');
@@ -540,5 +589,9 @@ class SloxRepl {
         }
     }
 }
+
+// =============================================================================
+// Entry Point
+// =============================================================================
 
 document.addEventListener('DOMContentLoaded', () => new SloxRepl());
