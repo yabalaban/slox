@@ -128,6 +128,12 @@ export class SwiftRuntime {
                 const copy = new TypedArray(buffer);
                 return this.retain(copy);
             },
+            swjs_load_typed_array: (ref, buffer) => {
+                const typedArray = this.getObject(ref);
+                const uint8View = new Uint8Array(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength);
+                new Uint8Array(this.memory.buffer, buffer, typedArray.byteLength).set(uint8View);
+                return typedArray.byteLength;
+            },
             swjs_release: (ref) => {
                 this.release(ref);
             },
