@@ -1,5 +1,6 @@
 // slox Web REPL
 
+const BUILD_TIME = '__BUILD_TIME__';
 const PROMPT = '\x1b[32m>>>\x1b[0m ';
 const CONTINUATION_PROMPT = '\x1b[32m...\x1b[0m ';
 
@@ -198,7 +199,8 @@ class SloxRepl {
                 this.ready = true;
 
                 const elapsed = Date.now() - startTime;
-                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mReady (${wasmSize}KB, ${elapsed}ms)\x1b[0m`);
+                const buildInfo = BUILD_TIME !== '__BUILD_TIME__' ? `, built: ${BUILD_TIME}` : '';
+                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mReady (${wasmSize}KB, ${elapsed}ms${buildInfo})\x1b[0m`);
             } else {
                 throw new Error('API initialization failed');
             }

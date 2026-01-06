@@ -39,6 +39,9 @@ jobs:
             -Xlinker --export=slox_init
           ls -la .build/release/
           cp .build/release/slox-wasm.wasm web/
+          # Inject build timestamp into JS
+          BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
+          sed -i "s/__BUILD_TIME__/$BUILD_TIME/" web/app.js
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
