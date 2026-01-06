@@ -21,7 +21,7 @@ let buildTime = "__BUILD_TIME__"
 // Debug logging helper
 func log(_ message: String) {
     let console = JSObject.global.console.object!
-    _ = console.log(JSValue.string("[slox] \(message)"))
+    _ = console.log!(JSValue.string("[slox] \(message)"))
 }
 
 // Export initialization function for JavaScript to call
