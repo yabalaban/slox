@@ -8,7 +8,12 @@ import SloxCore
 
 // Global state - must keep references alive
 var driver: Driver?
-var outputCallback: JSObject?
+var outputCallback: JSFunction?
+
+// Keep closures alive to prevent GC
+var initInterpreterClosure: JSClosure?
+var executeClosure: JSClosure?
+var getEnvironmentClosure: JSClosure?
 
 // Build timestamp for cache busting verification
 let buildTime = "__BUILD_TIME__"
@@ -36,8 +41,8 @@ func sloxInit() {
     sloxNamespace.buildTime = JSValue.string(buildTime)
 
     // Initialize the interpreter with an output callback
-    let initInterpreterClosure = JSClosure { args -> JSValue in
-        guard args.count >= 1, let cb = args[0].object else {
+    initInterpreterClosure = JSClosure { args -> JSValue in
+        guard args.count >= 1, let cb = args[0].function else {
             return .boolean(false)
         }
 
@@ -46,7 +51,7 @@ func sloxInit() {
 
         driver = Driver { output in
             if let cb = outputCallback {
-                _ = cb.callAsFunction!(JSValue.string(output))
+                _ = cb(JSValue.string(output))
             }
         }
 
@@ -54,7 +59,7 @@ func sloxInit() {
     }
 
     // Execute a line of Lox code
-    let executeClosure = JSClosure { args -> JSValue in
+    executeClosure = JSClosure { args -> JSValue in
         guard args.count >= 1 else { return .undefined }
         let source = args[0].string ?? ""
         driver?.run(source: source)
@@ -62,15 +67,15 @@ func sloxInit() {
     }
 
     // Get the current environment state
-    let getEnvironmentClosure = JSClosure { _ -> JSValue in
+    getEnvironmentClosure = JSClosure { _ -> JSValue in
         let env = driver?.getEnvironment() ?? "{}"
         return .string(env)
     }
 
     // Export functions to the slox namespace
-    sloxNamespace.initInterpreter = JSValue.function(initInterpreterClosure)
-    sloxNamespace.execute = JSValue.function(executeClosure)
-    sloxNamespace.getEnvironment = JSValue.function(getEnvironmentClosure)
+    sloxNamespace.initInterpreter = JSValue.function(initInterpreterClosure!)
+    sloxNamespace.execute = JSValue.function(executeClosure!)
+    sloxNamespace.getEnvironment = JSValue.function(getEnvironmentClosure!)
 
     // Signal that WASM is ready
     if let readyFn = JSObject.global.sloxReady.function {
