@@ -199,11 +199,9 @@ class SloxRepl {
             instance.exports._initialize();
         }
 
-        // Call the main entry point to set up the slox API
-        if (instance.exports.main) {
-            instance.exports.main();
-        } else if (instance.exports._start) {
-            instance.exports._start();
+        // Call our custom init function to set up the slox API
+        if (instance.exports.slox_init) {
+            instance.exports.slox_init();
         }
     }
 

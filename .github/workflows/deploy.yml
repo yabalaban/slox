@@ -35,7 +35,8 @@ jobs:
         run: |
           set -ex
           swift build --triple wasm32-unknown-wasi -c release --product slox-wasm \
-            -Xswiftc -Xclang-linker -Xswiftc -mexec-model=reactor
+            -Xswiftc -Xclang-linker -Xswiftc -mexec-model=reactor \
+            -Xlinker --export=slox_init
           ls -la .build/release/
           cp .build/release/slox-wasm.wasm web/
 
