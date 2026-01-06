@@ -34,15 +34,8 @@ func sloxInit() {
             return .undefined
         }
 
-        let callbackClosure = JSClosure { outputArgs -> JSValue in
-            if outputArgs.count > 0 {
-                _ = callback.callAsFunction!(outputArgs[0])
-            }
-            return .undefined
-        }
-
         driver = Driver { output in
-            _ = callbackClosure(output)
+            _ = callback.callAsFunction!(JSValue.string(output))
         }
 
         return .undefined
