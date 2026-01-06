@@ -16,7 +16,6 @@ var executeClosure: JSClosure?
 var getEnvironmentClosure: JSClosure?
 var getGlobalsClosure: JSClosure?
 var resetClosure: JSClosure?
-var getBuildTimeClosure: JSClosure?
 
 // Build timestamp (injected at build time)
 let buildTime = "__BUILD_TIME__"
@@ -82,21 +81,15 @@ func sloxInit() {
         return .undefined
     }
 
-    // Get build timestamp
-    getBuildTimeClosure = JSClosure { _ -> JSValue in
-        return .string(buildTime)
-    }
-
     // Export functions to the slox namespace
     sloxNamespace.initInterpreter = .object(initInterpreterClosure!)
     sloxNamespace.execute = .object(executeClosure!)
     sloxNamespace.getEnvironment = .object(getEnvironmentClosure!)
     sloxNamespace.getGlobals = .object(getGlobalsClosure!)
     sloxNamespace.reset = .object(resetClosure!)
-    sloxNamespace.getBuildTime = .object(getBuildTimeClosure!)
 
-    // Signal that WASM is ready
+    // Signal that WASM is ready, passing build time
     if let readyFn = JSObject.global.sloxReady.function {
-        _ = readyFn()
+        _ = readyFn(JSValue.string(buildTime))
     }
 }

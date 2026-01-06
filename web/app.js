@@ -156,7 +156,8 @@ class SloxRepl {
 
         try {
             window.slox = {};
-            window.sloxReady = () => {};
+            let receivedBuildTime = 'unknown';
+            window.sloxReady = (bt) => { receivedBuildTime = bt || 'unknown'; };
 
             const response = await fetch('slox-wasm.wasm');
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -198,8 +199,7 @@ class SloxRepl {
                 this.ready = true;
 
                 const elapsed = Date.now() - startTime;
-                const buildTime = window.slox.getBuildTime?.() || 'unknown';
-                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mReady (${wasmSize}KB, ${elapsed}ms, built: ${buildTime})\x1b[0m`);
+                this.terminal.writeln(`\x1b[32m✓\x1b[0m \x1b[38;5;242mReady (${wasmSize}KB, ${elapsed}ms, built: ${receivedBuildTime})\x1b[0m`);
             } else {
                 throw new Error('API initialization failed');
             }
